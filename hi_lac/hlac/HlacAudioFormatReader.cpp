@@ -411,7 +411,7 @@ bool HlacMemoryMappedAudioFormatReader::mapSectionOfFile(Range<int64> samplesToM
 
 		auto fileRange = Range<int64>(start, end);
 
-		map = new MemoryMappedFile(getFile(), fileRange, MemoryMappedFile::readOnly, false);
+		map.reset(new MemoryMappedFile(getFile(), fileRange, MemoryMappedFile::readOnly, false));
 
 		if (map != nullptr && !map->getRange().isEmpty())
 		{

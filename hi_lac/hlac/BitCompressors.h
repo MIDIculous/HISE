@@ -1,5 +1,5 @@
 /*  HISE Lossless Audio Codec
-*	©2017 Christoph Hart
+*	ï¿½2017 Christoph Hart
 *
 *	Redistribution and use in source and binary forms, with or without modification,
 *	are permitted provided that the following conditions are met:
@@ -36,6 +36,7 @@ namespace hlac { using namespace juce;
 
 #define LOG_RATIO(x) 
 
+#undef USE_SSE
 #define USE_SSE 0
 
 

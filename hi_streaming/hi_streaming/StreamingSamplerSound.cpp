@@ -198,7 +198,7 @@ void StreamingSamplerSound::setPreloadSize(int newPreloadSize, bool forceReload)
 	if (loopEnabled && (loopEnd - loopStart > 0) && loopEnd < internalPreloadSize)
 	{
 		entireSampleLoaded = false;
-		int samplesToFill = internalPreloadSize;
+//        int samplesToFill = internalPreloadSize;
 		
 		fileReader.readFromDisk(preloadBuffer, 0, loopEnd, sampleStart + monolithOffset, true);
 		const int samplesPerFillOp = (loopEnd - loopStart);
