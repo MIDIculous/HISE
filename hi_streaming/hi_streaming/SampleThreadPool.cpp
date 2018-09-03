@@ -68,12 +68,12 @@ SampleThreadPool::SampleThreadPool() :
 
 SampleThreadPool::~SampleThreadPool()
 {
-    if (Job* currentJob = currentlyExecutedJob.load())
+    if (Job* currentJob = pimpl->currentlyExecutedJob.load())
     {
         currentJob->signalJobShouldExit();
     }
     
-    const bool stopped = stopThread(300);
+    const bool stopped = stopThread(3000);
     jassert(stopped);
 }
 
