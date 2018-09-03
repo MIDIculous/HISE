@@ -43,12 +43,7 @@ struct SampleThreadPool::Pimpl
 	{};
 
 	~Pimpl()
-	{
-		if (Job* currentJob = currentlyExecutedJob.load())
-		{
-			currentJob->signalJobShouldExit();
-		}
-	}
+	{}
 
 	Atomic<int> counter;
 
@@ -73,9 +68,13 @@ SampleThreadPool::SampleThreadPool() :
 
 SampleThreadPool::~SampleThreadPool()
 {
-	pimpl = nullptr;
-
-	stopThread(300);
+    if (Job* currentJob = currentlyExecutedJob.load())
+    {
+        currentJob->signalJobShouldExit();
+    }
+    
+    const bool stopped = stopThread(300);
+    jassert(stopped);
 }
 
 double SampleThreadPool::getDiskUsage() const noexcept
