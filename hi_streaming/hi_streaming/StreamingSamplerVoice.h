@@ -41,7 +41,8 @@ namespace hise { using namespace juce;
 *	It is derived from ThreadPoolJob, so whenever you want it to read new samples, add an instance of this
 *	to a ThreadPool (but don't delete it!) and it will do what it is supposed to do.
 */
-class SampleLoader : public SampleThreadPoolJob
+class SampleLoader : public SampleThreadPoolJob,
+                     public std::enable_shared_from_this<SampleLoader> // note: public inheritance
 {
 public:
 
@@ -142,7 +143,7 @@ private:
 	void refreshBufferSizes();
 	// ============================================================================================ member variables
 
-	Unmapper unmapper;
+    std::shared_ptr<Unmapper> unmapper;
 
 	/** The class tries to be as lock free as possible (it only locks the buffer that is filled
 	*	during the read operation, but I have to lock everything for a few calls, so that's why
@@ -251,7 +252,7 @@ public:
 	*
 	*	To get the disk usage of all voices, simply iterate over the voice list and add all disk usages.
 	*/
-	double getDiskUsage() { return loader.getDiskUsage(); };
+	double getDiskUsage() { return loader->getDiskUsage(); };
 
 	/** Initializes its sampleBuffer. You have to call this manually, since there is no base class function. */
 	void prepareToPlay(double sampleRate, int samplesPerBlock);
@@ -307,7 +308,7 @@ private:
 
 	DebugLogger* logger = nullptr;
 
-	SampleLoader loader;
+    const std::shared_ptr<SampleLoader> loader;
 };
 
 } // namespace hise

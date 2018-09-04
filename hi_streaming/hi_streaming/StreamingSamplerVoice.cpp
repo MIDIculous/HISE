@@ -37,6 +37,7 @@ namespace hise { using namespace juce;
 SampleLoader::SampleLoader(SampleThreadPool *pool_) :
 	SampleThreadPoolJob("SampleLoader"),
 	backgroundPool(pool_),
+    unmapper(std::make_shared<Unmapper>()),
 	writeBufferIsBeingFilled(false),
 	sound(0),
 	readIndex(0),
@@ -53,13 +54,14 @@ SampleLoader::SampleLoader(SampleThreadPool *pool_) :
 	b1(true, 2, 0),
 	b2(true, 2, 0)
 {
-	unmapper.setLoader(this);
+	unmapper->setLoader(this);
 
 	setBufferSize(BUFFER_SIZE_FOR_STREAM_BUFFERS);
 }
 
 SampleLoader::~SampleLoader()
 {
+    unmapper = nullptr;
 	b1.setSize(2, 0);
 	b2.setSize(2, 0);
 }
@@ -145,9 +147,9 @@ void SampleLoader::reset()
 			// If the samples are not monolithic, we'll need to close the
 			// file handles on the background thread.
 
-			unmapper.setSoundToUnmap(currentSound);
+			unmapper->setSoundToUnmap(currentSound);
 
-			backgroundPool->addJob(&unmapper, false);
+			backgroundPool->addJob(unmapper, false);
 
 			clearLoader();
 		}
@@ -313,11 +315,11 @@ bool SampleLoader::requestNewData()
 	}
 	else
 	{
-		backgroundPool->addJob(this, false);
+		backgroundPool->addJob(shared_from_this(), false);
 		return true;
 	}
 #else
-	backgroundPool->addJob(this, false);
+	backgroundPool->addJob(shared_from_this(), false);
 	return true;
 #endif
 };
@@ -463,7 +465,7 @@ bool SampleLoader::swapBuffers()
 // ==================================================================================================== StreamingSamplerVoice methods
 
 StreamingSamplerVoice::StreamingSamplerVoice(SampleThreadPool *pool) :
-	loader(pool),
+    loader(std::make_shared<SampleLoader>(pool)),
 	sampleStartModValue(0)
 {
 	pitchData = nullptr;
@@ -478,7 +480,7 @@ void StreamingSamplerVoice::startNote(int /*midiNoteNumber*/,
 
 	if (sound != nullptr && sound->getSampleLength() > 0)
 	{
-		loader.startNote(sound, sampleStartModValue);
+		loader->startNote(sound, sampleStartModValue);
 
 		jassert(sound != nullptr);
 		sound->wakeSound();
@@ -505,24 +507,24 @@ void StreamingSamplerVoice::startNote(int /*midiNoteNumber*/,
 
 const StreamingSamplerSound * StreamingSamplerVoice::getLoadedSound()
 {
-	return loader.getLoadedSound();
+	return loader->getLoadedSound();
 }
 
 void StreamingSamplerVoice::setLoaderBufferSize(int newBufferSize)
 {
-	loader.setBufferSize(newBufferSize);
+	loader->setBufferSize(newBufferSize);
 }
 
 void StreamingSamplerVoice::stopNote(float, bool /*allowTailOff*/)
 {
 	clearCurrentNote();
-	loader.reset();
+	loader->reset();
 }
 
 void StreamingSamplerVoice::setDebugLogger(DebugLogger* newLogger)
 {
 	logger = newLogger;
-	loader.setLogger(logger);
+	loader->setLogger(logger);
 }
 
 template <typename SignalType> void interpolateStereoSamples(const SignalType* inL, const SignalType* inR, const float* pitchData, float* outL, float* outR, int startSample, double indexInBuffer, double uptimeDelta, int numSamples, bool isFloat)
@@ -580,7 +582,7 @@ template <typename SignalType> void interpolateStereoSamples(const SignalType* i
 
 void StreamingSamplerVoice::renderNextBlock(AudioSampleBuffer &outputBuffer, int startSample, int numSamples)
 {
-	const StreamingSamplerSound *sound = loader.getLoadedSound();
+	const StreamingSamplerSound *sound = loader->getLoadedSound();
 
 #if USE_SAMPLE_DEBUG_COUNTER
 	const int startDebug = startSample;
@@ -600,7 +602,7 @@ void StreamingSamplerVoice::renderNextBlock(AudioSampleBuffer &outputBuffer, int
 		//tempVoiceBuffer->clear();
 
 		// Copy the not resampled values into the voice buffer.
-		StereoChannelData data = loader.fillVoiceBuffer(*tempVoiceBuffer, pitchCounter + startAlpha);
+		StereoChannelData data = loader->fillVoiceBuffer(*tempVoiceBuffer, pitchCounter + startAlpha);
 
 		float* outL = outputBuffer.getWritePointer(0, startSample);
 		float* outR = outputBuffer.getWritePointer(1, startSample);
@@ -650,7 +652,7 @@ void StreamingSamplerVoice::renderNextBlock(AudioSampleBuffer &outputBuffer, int
 		voiceUptime += pitchCounter;
 #endif
 
-		if (!loader.advanceReadIndex(voiceUptime))
+		if (!loader->advanceReadIndex(voiceUptime))
 		{
 #if LOG_SAMPLE_RENDERING
 			logger->addStreamingFailure(voiceUptime);
@@ -693,7 +695,7 @@ void StreamingSamplerVoice::prepareToPlay(double sampleRate, int samplesPerBlock
 {
 	if (sampleRate != -1.0)
 	{
-		loader.assertBufferSize(samplesPerBlock * MAX_SAMPLER_PITCH);
+		loader->assertBufferSize(samplesPerBlock * MAX_SAMPLER_PITCH);
 
 		setCurrentPlaybackSampleRate(sampleRate);
 	}
@@ -704,7 +706,7 @@ void StreamingSamplerVoice::resetVoice()
 	voiceUptime = 0.0;
 	uptimeDelta = 0.0;
 	isActive = false;
-	loader.reset();
+	loader->reset();
 	clearCurrentNote();
 }
 
@@ -741,7 +743,7 @@ void StreamingSamplerVoice::initTemporaryVoiceBuffer(hlac::HiseSampleBuffer* buf
 
 void StreamingSamplerVoice::setStreamingBufferDataType(bool shouldBeFloat)
 {
-	loader.setStreamingBufferDataType(shouldBeFloat);
+	loader->setStreamingBufferDataType(shouldBeFloat);
 }
 
 void SampleLoader::Unmapper::setLoader(SampleLoader *loader_)

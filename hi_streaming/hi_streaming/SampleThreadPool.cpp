@@ -51,7 +51,7 @@ struct SampleThreadPool::Pimpl
 
 	int64 startTime, endTime;
 
-	moodycamel::ReaderWriterQueue<WeakReference<Job>> jobQueue;
+    moodycamel::ReaderWriterQueue<std::weak_ptr<Job>> jobQueue;
 
 	std::atomic<Job*> currentlyExecutedJob;
 
@@ -82,85 +82,85 @@ double SampleThreadPool::getDiskUsage() const noexcept
 	return pimpl->diskUsage.load();
 }
 
-void SampleThreadPool::addJob(Job* jobToAdd, bool unused)
+void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
 {
-	++pimpl->counter;
-
-	ignoreUnused(unused);
+    const auto j = jobToAdd.lock();
+    if (!j)
+        return;
+    
+    ++pimpl->counter;
 
 #if ENABLE_CONSOLE_OUTPUT
-	if (jobToAdd->isQueued())
+	if (j->isQueued())
 	{
 		Logger::writeToLog(pimpl->errorMessage);
 		Logger::writeToLog(String(pimpl->counter.get()));
 	}
 #endif
 
-
-	jobToAdd->queued.store(true);
-	pimpl->jobQueue.enqueue(jobToAdd);
-
-
-	notify();
+    j->queued.store(true);
+    pimpl->jobQueue.enqueue(j);
+    notify();
 }
 
 void SampleThreadPool::run()
 {
 	while (!threadShouldExit())
 	{
-		if (WeakReference<Job>* next = pimpl->jobQueue.peek())
-		{
-			Job* j = next->get();
-
+        if (auto* next = pimpl->jobQueue.peek()) {
+            const auto j = next->lock();
+            
 #if ENABLE_CPU_MEASUREMENT
-
-			const int64 lastEndTime = pimpl->endTime;
-			pimpl->startTime = Time::getHighResolutionTicks();
+            const int64 lastEndTime = pimpl->endTime;
+            pimpl->startTime = Time::getHighResolutionTicks();
 #endif
-
-			if (j != nullptr)
-			{
-				pimpl->currentlyExecutedJob.store(j);
-
-				j->currentThread.store(this);
-
-				j->running.store(true);
-				
-				Job::JobStatus status = j->runJob();
-
-				j->running.store(false);
-
-				if (status == Job::jobHasFinished)
-				{
-					pimpl->jobQueue.pop();
-					j->queued.store(false);
-					--pimpl->counter;
-				}
-
-				pimpl->currentlyExecutedJob.store(nullptr);
-			}
-
-
+            
+            if (j)
+            {
+                pimpl->currentlyExecutedJob.store(j.get());
+                
+                j->currentThread.store(this);
+                
+                j->running.store(true);
+                
+                const Job::JobStatus status = j->runJob();
+                
+                j->running.store(false);
+                
+                if (status == Job::jobHasFinished)
+                {
+                    pimpl->jobQueue.pop();
+                    j->queued.store(false);
+                    --pimpl->counter;
+                }
+                
+                pimpl->currentlyExecutedJob.store(nullptr);
+            }
+            else {
+                // Job was already deleted. Remove from queue:
+                pimpl->jobQueue.pop();
+                --pimpl->counter;
+            }
+            
+            
 #if ENABLE_CPU_MEASUREMENT
-			pimpl->endTime = Time::getHighResolutionTicks();
-
-			const int64 idleTime = pimpl->startTime - lastEndTime;
-			const int64 busyTime = pimpl->endTime - pimpl->startTime;
-
-			pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
+            pimpl->endTime = Time::getHighResolutionTicks();
+            
+            const int64 idleTime = pimpl->startTime - lastEndTime;
+            const int64 busyTime = pimpl->endTime - pimpl->startTime;
+            
+            pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
 #endif
-		}
-
+            
+        }
 #if 0 // Set this to true to enable defective threading (for debugging purposes)
-		wait(500);
+        wait(500);
 #else
-		else
-		{
-			wait(500);
-		}
+        else
+        {
+            wait(500);
+        }
 #endif
-
-
 	}
 }
 
