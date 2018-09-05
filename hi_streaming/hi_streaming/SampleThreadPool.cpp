@@ -53,7 +53,7 @@ struct SampleThreadPool::Pimpl
 
     moodycamel::ReaderWriterQueue<std::weak_ptr<Job>> jobQueue;
 
-	std::atomic<Job*> currentlyExecutedJob;
+    std::shared_ptr<Job> currentlyExecutedJob;
 
 	static const String errorMessage;
 };
@@ -68,10 +68,8 @@ SampleThreadPool::SampleThreadPool() :
 
 SampleThreadPool::~SampleThreadPool()
 {
-    if (Job* currentJob = pimpl->currentlyExecutedJob.load())
-    {
+    if (const auto currentJob = std::atomic_load(&pimpl->currentlyExecutedJob))
         currentJob->signalJobShouldExit();
-    }
     
     const bool stopped = stopThread(3000);
     jassert(stopped);
@@ -117,7 +115,7 @@ void SampleThreadPool::run()
             
             if (j)
             {
-                pimpl->currentlyExecutedJob.store(j.get());
+                std::atomic_store(&pimpl->currentlyExecutedJob, j);
                 
                 j->currentThread.store(this);
                 
@@ -134,7 +132,7 @@ void SampleThreadPool::run()
                     --pimpl->counter;
                 }
                 
-                pimpl->currentlyExecutedJob.store(nullptr);
+                std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
             }
             else {
                 // Job was already deleted. Remove from queue:
