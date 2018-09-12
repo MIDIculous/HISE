@@ -103,63 +103,66 @@ void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
 
 void SampleThreadPool::run()
 {
-	while (!threadShouldExit())
-	{
-        if (auto* next = pimpl->jobQueue.peek()) {
-            const auto j = next->lock();
-            
-#if ENABLE_CPU_MEASUREMENT
-            const int64 lastEndTime = pimpl->endTime;
-            pimpl->startTime = Time::getHighResolutionTicks();
-#endif
-            
-            if (j)
-            {
-                std::atomic_store(&pimpl->currentlyExecutedJob, j);
+    JUCE_TRY {
+    	while (!threadShouldExit())
+    	{
+            if (auto* next = pimpl->jobQueue.peek()) {
+                const auto j = next->lock();
                 
-                j->currentThread.store(this);
+    #if ENABLE_CPU_MEASUREMENT
+                const int64 lastEndTime = pimpl->endTime;
+                pimpl->startTime = Time::getHighResolutionTicks();
+    #endif
                 
-                j->running.store(true);
-                
-                const Job::JobStatus status = j->runJob();
-                
-                j->running.store(false);
-                
-                if (status == Job::jobHasFinished)
+                if (j)
                 {
+                    std::atomic_store(&pimpl->currentlyExecutedJob, j);
+                    
+                    j->currentThread.store(this);
+                    
+                    j->running.store(true);
+                    
+                    const Job::JobStatus status = j->runJob();
+                    
+                    j->running.store(false);
+                    
+                    if (status == Job::jobHasFinished)
+                    {
+                        pimpl->jobQueue.pop();
+                        j->queued.store(false);
+                        --pimpl->counter;
+                    }
+                    
+                    std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
+                }
+                else {
+                    // Job was already deleted. Remove from queue:
                     pimpl->jobQueue.pop();
-                    j->queued.store(false);
                     --pimpl->counter;
                 }
                 
-                std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
+                
+    #if ENABLE_CPU_MEASUREMENT
+                pimpl->endTime = Time::getHighResolutionTicks();
+                
+                const int64 idleTime = pimpl->startTime - lastEndTime;
+                const int64 busyTime = pimpl->endTime - pimpl->startTime;
+                
+                pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
+    #endif
+                
             }
-            else {
-                // Job was already deleted. Remove from queue:
-                pimpl->jobQueue.pop();
-                --pimpl->counter;
-            }
-            
-            
-#if ENABLE_CPU_MEASUREMENT
-            pimpl->endTime = Time::getHighResolutionTicks();
-            
-            const int64 idleTime = pimpl->startTime - lastEndTime;
-            const int64 busyTime = pimpl->endTime - pimpl->startTime;
-            
-            pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
-#endif
-            
-        }
-#if 0 // Set this to true to enable defective threading (for debugging purposes)
-        wait(500);
-#else
-        else
-        {
+    #if 0 // Set this to true to enable defective threading (for debugging purposes)
             wait(500);
-        }
-#endif
-	}
+    #else
+            else
+            {
+                wait(500);
+            }
+    #endif
+    	}
+    }
+    JUCE_CATCH_EXCEPTION
 }
 
 const String SampleThreadPool::Pimpl::errorMessage("HDD overflow");
