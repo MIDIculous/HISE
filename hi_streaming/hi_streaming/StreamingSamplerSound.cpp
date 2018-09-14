@@ -162,13 +162,17 @@ void StreamingSamplerSound::setPreloadSize(int newPreloadSize, bool forceReload)
 
 	internalPreloadSize = jmax(preloadSize, internalPreloadSize, 2048);
 
+    Logger::writeToLog("setPreloadSize: Calling openFileHandles...");
 	fileReader.openFileHandles();
+    Logger::writeToLog("setPreloadSize: openFileHandles returned.");
 
 	preloadBuffer = hlac::HiseSampleBuffer(!fileReader.isMonolithic(), fileReader.isStereo() ? 2 : 1, 0);
 
 	try
 	{
+        Logger::writeToLog("setPreloadSize: Calling preloadBuffer.setSize...");
 		preloadBuffer.setSize(fileReader.isStereo() ? 2 : 1, internalPreloadSize);
+        Logger::writeToLog("setPreloadSize: preloadBuffer.setSize returned.");
 	}
 	catch (std::exception e)
 	{
@@ -200,7 +204,9 @@ void StreamingSamplerSound::setPreloadSize(int newPreloadSize, bool forceReload)
 		entireSampleLoaded = false;
 //        int samplesToFill = internalPreloadSize;
 		
+        Logger::writeToLog("setPreloadSize: Calling readFromDisk with loopEnd: " + String(loopEnd) + "...");
 		fileReader.readFromDisk(preloadBuffer, 0, loopEnd, sampleStart + monolithOffset, true);
+        Logger::writeToLog("setPreloadSize: readFromDisk returned.");
 		const int samplesPerFillOp = (loopEnd - loopStart);
 
 		int numTodo = internalPreloadSize - loopEnd;
@@ -211,7 +217,9 @@ void StreamingSamplerSound::setPreloadSize(int newPreloadSize, bool forceReload)
 		{
 			int numThisTime = jmin<int>(numTodo, samplesPerFillOp);
 
+            Logger::writeToLog("setPreloadSize: Calling copy...");
 			hlac::HiseSampleBuffer::copy(preloadBuffer, preloadBuffer, pos, loopStart, numThisTime);
+            Logger::writeToLog("setPreloadSize: copy returned.");
 			numTodo -= numThisTime;
 			pos += numThisTime;
 		}
@@ -220,8 +228,11 @@ void StreamingSamplerSound::setPreloadSize(int newPreloadSize, bool forceReload)
 	{
 		auto samplesToRead = jmin<int>(sampleLength, internalPreloadSize);
 
-		if(samplesToRead > 0)
+		if(samplesToRead > 0) {
+            Logger::writeToLog("setPreloadSize: Calling readFromDisk with samplesToRead: " + String(samplesToRead) + "...");
 			fileReader.readFromDisk(preloadBuffer, 0, samplesToRead, sampleStart + monolithOffset, true);
+            Logger::writeToLog("setPreloadSize: readFromDisk returned.");
+        }
 	}
 }
 
