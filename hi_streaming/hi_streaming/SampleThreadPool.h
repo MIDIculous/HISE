@@ -52,7 +52,8 @@ public:
 			name(name_),
 			queued(false),
 			running(false),
-			shouldStop(false)
+			shouldStop(false),
+            currentThread(nullptr)
 		{};
         
         virtual ~Job() { masterReference.clear(); }
