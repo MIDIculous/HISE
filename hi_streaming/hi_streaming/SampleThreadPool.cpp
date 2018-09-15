@@ -30,54 +30,53 @@
 *   ===========================================================================
 */
 
-namespace hise { using namespace juce;
+namespace hise {
+using namespace juce;
 
 
 struct SampleThreadPool::Pimpl
 {
-	Pimpl() :
-		jobQueue(2048),
-		currentlyExecutedJob(nullptr),
-		diskUsage(0.0),
-		counter(0)
-	{};
+    Pimpl()
+    : jobQueue(2048),
+      currentlyExecutedJob(nullptr),
+      diskUsage(0.0),
+      counter(0){};
 
-	~Pimpl()
-	{}
+    ~Pimpl()
+    {}
 
-	Atomic<int> counter;
+    Atomic<int> counter;
 
-	std::atomic<double> diskUsage;
+    std::atomic<double> diskUsage;
 
-	int64 startTime, endTime;
+    int64 startTime, endTime;
 
-    moodycamel::ReaderWriterQueue<std::weak_ptr<Job>> jobQueue;
+    moodycamel::ConcurrentQueue<std::weak_ptr<Job>> jobQueue;
 
     std::shared_ptr<Job> currentlyExecutedJob;
 
-	static const String errorMessage;
+    static const String errorMessage;
 };
 
-SampleThreadPool::SampleThreadPool() :
-	Thread("Sample Loading Thread"),
-	pimpl(new Pimpl())
+SampleThreadPool::SampleThreadPool()
+: Thread("Sample Loading Thread"),
+  pimpl(new Pimpl())
 {
-
-	startThread(9);
+    startThread(9);
 }
 
 SampleThreadPool::~SampleThreadPool()
 {
     if (const auto currentJob = std::atomic_load(&pimpl->currentlyExecutedJob))
         currentJob->signalJobShouldExit();
-    
+
     const bool stopped = stopThread(3000);
     jassert(stopped);
 }
 
 double SampleThreadPool::getDiskUsage() const noexcept
 {
-	return pimpl->diskUsage.load();
+    return pimpl->diskUsage.load();
 }
 
 void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
@@ -85,15 +84,14 @@ void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
     const auto j = jobToAdd.lock();
     if (!j)
         return;
-    
+
     ++pimpl->counter;
 
 #if ENABLE_CONSOLE_OUTPUT
-	if (j->isQueued())
-	{
-		Logger::writeToLog(pimpl->errorMessage);
-		Logger::writeToLog(String(pimpl->counter.get()));
-	}
+    if (j->isQueued()) {
+        Logger::writeToLog(pimpl->errorMessage);
+        Logger::writeToLog(String(pimpl->counter.get()));
+    }
 #endif
 
     j->queued.store(true);
@@ -103,64 +101,58 @@ void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
 
 void SampleThreadPool::run()
 {
-    JUCE_TRY {
-    	while (!threadShouldExit())
-    	{
-            if (auto* next = pimpl->jobQueue.peek()) {
-                const auto j = next->lock();
-                
-    #if ENABLE_CPU_MEASUREMENT
-                const int64 lastEndTime = pimpl->endTime;
-                pimpl->startTime = Time::getHighResolutionTicks();
-    #endif
-                
-                if (j)
-                {
-                    std::atomic_store(&pimpl->currentlyExecutedJob, j);
-                    
-                    j->currentThread.store(this);
-                    
-                    j->running.store(true);
-                    
-                    const Job::JobStatus status = j->runJob();
-                    
-                    j->running.store(false);
-                    
-                    if (status == Job::jobHasFinished)
-                    {
-                        pimpl->jobQueue.pop();
-                        j->queued.store(false);
-                        --pimpl->counter;
-                    }
-                    
-                    std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
-                }
-                else {
-                    // Job was already deleted. Remove from queue:
-                    pimpl->jobQueue.pop();
-                    --pimpl->counter;
-                }
-                
-                
-    #if ENABLE_CPU_MEASUREMENT
-                pimpl->endTime = Time::getHighResolutionTicks();
-                
-                const int64 idleTime = pimpl->startTime - lastEndTime;
-                const int64 busyTime = pimpl->endTime - pimpl->startTime;
-                
-                pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
-    #endif
-                
+    JUCE_TRY
+    {
+        while (!threadShouldExit()) {
+            // If queue is empty, sleep
+            std::weak_ptr<Job> weakJob;
+            if (!pimpl->jobQueue.try_dequeue(weakJob)) {
+                sleep(500);
+                continue;
             }
-    #if 0 // Set this to true to enable defective threading (for debugging purposes)
-            wait(500);
-    #else
-            else
-            {
-                wait(500);
+
+            // Ignore jobs that have expired
+            const auto job = weakJob.lock();
+            if (!job) {
+                --pimpl->counter;
+                continue;
             }
-    #endif
-    	}
+
+#if ENABLE_CPU_MEASUREMENT
+            const int64 lastEndTime = pimpl->endTime;
+            pimpl->startTime = Time::getHighResolutionTicks();
+#endif
+
+            std::atomic_store(&pimpl->currentlyExecutedJob, job);
+
+            job->currentThread.store(this);
+
+            job->running.store(true);
+
+            const auto status = job->runJob();
+
+            job->running.store(false);
+
+            if (status == Job::jobHasFinished) {
+                job->queued.store(false);
+                --pimpl->counter;
+            }
+            else {
+                // Enqueue again
+                pimpl->jobQueue.enqueue(job);
+            }
+
+            std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
+
+#if ENABLE_CPU_MEASUREMENT
+            pimpl->endTime = Time::getHighResolutionTicks();
+
+            const int64 idleTime = pimpl->startTime - lastEndTime;
+            const int64 busyTime = pimpl->endTime - pimpl->startTime;
+
+            pimpl->diskUsage.store((double)busyTime / (double)(idleTime + busyTime));
+#endif
+        }
     }
     JUCE_CATCH_EXCEPTION
 }
