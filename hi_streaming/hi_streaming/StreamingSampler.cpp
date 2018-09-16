@@ -50,13 +50,8 @@ bool StreamingHelpers::preloadSample(StreamingSamplerSound * s, const int preloa
 {
 	try
 	{
-        Logger::writeToLog("preloadSample: Calling setPreloadSize for sound '" + s->getFileName() + "'...");
 		s->setPreloadSize(s->hasActiveState() ? preloadSize : 0, true);
-        Logger::writeToLog("preloadSample: setPreloadSize for sound '" + s->getFileName() + "' returned.");
-        
-        Logger::writeToLog("preloadSample: Calling closeFileHandle for sound '" + s->getFileName() + "'...");
 		s->closeFileHandle();
-        Logger::writeToLog("preloadSample: closeFileHandle for sound '" + s->getFileName() + "' returned.");
 
 		return true;
 	}
