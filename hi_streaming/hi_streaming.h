@@ -80,6 +80,9 @@ Set this to true if you add this module to your existing C++ project and don't e
 #endif
 
 
+#include "hi_streaming/lockfree_fifo/readerwriterqueue.h"
+
+
 
 #include "hi_streaming/SampleThreadPool.h"
 #include "hi_streaming/MonolithAudioFormat.h"

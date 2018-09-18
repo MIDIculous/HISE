@@ -1,8 +1,6 @@
 
 #include "hi_streaming.h"
 
-#include "hi_streaming/lockfree_fifo/concurrentqueue.h"
-
 
 #include "hi_streaming/SampleThreadPool.cpp"
 #include "hi_streaming/MonolithAudioFormat.cpp"
