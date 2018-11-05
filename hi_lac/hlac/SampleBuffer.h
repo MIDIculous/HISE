@@ -68,8 +68,8 @@ public:
 	HiseSampleBuffer(HiseSampleBuffer&& otherBuffer) :
 		floatBuffer(otherBuffer.floatBuffer),
 		isFloat(otherBuffer.isFloat),
-		leftIntBuffer(std::move(otherBuffer.leftIntBuffer)),
-		rightIntBuffer(std::move(otherBuffer.rightIntBuffer)),
+		leftIntBuffer(nonstd::move(otherBuffer.leftIntBuffer)),
+		rightIntBuffer(nonstd::move(otherBuffer.rightIntBuffer)),
 		numChannels(otherBuffer.numChannels),
 		size(otherBuffer.size)
 	{};
@@ -88,8 +88,8 @@ public:
 	HiseSampleBuffer& operator= (HiseSampleBuffer&& other)
 	{
 		isFloat = other.isFloat;
-		leftIntBuffer = std::move(other.leftIntBuffer);
-		rightIntBuffer = std::move(other.rightIntBuffer);
+		leftIntBuffer = nonstd::move(other.leftIntBuffer);
+		rightIntBuffer = nonstd::move(other.rightIntBuffer);
 		floatBuffer = other.floatBuffer;
 		numChannels = other.numChannels;
 		size = other.size;

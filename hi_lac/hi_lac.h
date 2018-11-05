@@ -55,6 +55,20 @@ END_JUCE_MODULE_DECLARATION
 
 #include <juce_audio_formats/juce_audio_formats.h>
 
+// This is for allowing very low deployment targets in the HLACStandalone project
+namespace nonstd {
+    template< class T > struct remove_reference      {typedef T type;};
+    template< class T > struct remove_reference<T&>  {typedef T type;};
+    template< class T > struct remove_reference<T&&> {typedef T type;};
+    
+    template <class T>
+    typename remove_reference<T>::type&&
+    move(T&& a)
+    {
+        return static_cast<typename remove_reference<T>::type&&>(a);
+    }
+}
+
 #ifndef HLAC_NO_SSE
 #if JUCE_WINDOWS
 #define HLAC_NO_SSE 0
