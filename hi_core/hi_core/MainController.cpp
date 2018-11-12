@@ -105,7 +105,7 @@ MainController::~MainController()
 {
 
 
-	sampleManager = nullptr;
+//    sampleManager = nullptr;
 	Logger::setCurrentLogger(nullptr);
 	logger = nullptr;
 	masterReference.clear();
