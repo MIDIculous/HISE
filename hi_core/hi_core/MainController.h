@@ -219,7 +219,7 @@ public:
 		bool hddMode = false;
 		bool skipPreloading = false;
 
-		PreloadJob internalPreloadJob;
+        const std::shared_ptr<PreloadJob> internalPreloadJob;
 
 		// Just used for the listeners
 		std::atomic<bool> preloadFlag;

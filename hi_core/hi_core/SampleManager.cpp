@@ -50,7 +50,7 @@ MainController::SampleManager::SampleManager(MainController *mc_) :
 	globalAudioSampleBufferPool(new AudioSampleBufferPool(mc_)),
 	globalImagePool(new ImagePool(mc_)),
 	sampleClipboard(ValueTree("clipboard")),
-	internalPreloadJob(mc_),
+	internalPreloadJob(std::make_shared<PreloadJob>(mc_)),
 	preloadListenerUpdater(this),
 	preloadFlag(false)
 
@@ -158,7 +158,7 @@ void MainController::SampleManager::clearPreloadFlag()
 
 	jassert(preloadFlag);
 
-	internalPreloadJob.progress = 0.0;
+	internalPreloadJob->progress = 0.0;
 	preloadFlag = false;
 	preloadListenerUpdater.triggerAsyncUpdate();
 
@@ -186,10 +186,10 @@ void MainController::SampleManager::triggerSamplePreloading()
 
 	mc->getSampleManager().setPreloadFlag();
 
-	if (!internalPreloadJob.isRunning() && !internalPreloadJob.isQueued())
+	if (!internalPreloadJob->isRunning() && !internalPreloadJob->isQueued())
 	{
 		LOG_PRELOAD_EVENTS("Starting preload job");
-		mc->getSampleManager().getGlobalSampleThreadPool()->addJob(&internalPreloadJob, false);
+		mc->getSampleManager().getGlobalSampleThreadPool()->addJob(internalPreloadJob, false);
 	}
 	else
 	{

@@ -1109,7 +1109,7 @@ MainController::SampleManager::~SampleManager()
 {
 	preloadListeners.clear();
 
-	internalPreloadJob.signalJobShouldExit();
+	internalPreloadJob->signalJobShouldExit();
 
 	const bool ok = samplerLoaderThreadPool->stopThread(2000);
 	
@@ -1150,14 +1150,14 @@ void MainController::SampleManager::preloadEverything()
 
 double& MainController::SampleManager::getPreloadProgress()
 {
-	return internalPreloadJob.progress;
+	return internalPreloadJob->progress;
 }
 
 void MainController::SampleManager::cancelAllJobs()
 {
 	ScopedLock sl(getSamplerSoundLock());
 
-	internalPreloadJob.signalJobShouldExit();
+	internalPreloadJob->signalJobShouldExit();
 	samplerLoaderThreadPool->stopThread(2000);
 
 	
