@@ -52,7 +52,7 @@ END_JUCE_MODULE_DECLARATION
 #define HI_DSP_LIBRARY_H_INCLUDED
 
 #include "AppConfig.h"
-#include "../JUCE/modules/juce_core/juce_core.h"
+#include <juce_core/juce_core.h>
 
 
 

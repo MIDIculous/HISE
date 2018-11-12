@@ -61,7 +61,9 @@ END_JUCE_MODULE_DECLARATION
 #include <juce_core/juce_core.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_data_structures/juce_data_structures.h>
+#if JUCE_MODULE_AVAILABLE_intel_ipp
 #include <intel_ipp/intel_ipp.h>
+#endif
 #include <hi_lac/hi_lac.h>
 
 

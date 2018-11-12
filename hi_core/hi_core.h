@@ -62,16 +62,16 @@ END_JUCE_MODULE_DECLARATION
 #endif
 
 
-#include "../JUCE/modules/juce_core/juce_core.h"
-#include "../JUCE/modules/juce_audio_basics/juce_audio_basics.h"
-#include "../JUCE/modules/juce_gui_basics/juce_gui_basics.h"
-#include "../JUCE/modules/juce_audio_devices/juce_audio_devices.h"
-#include "../JUCE/modules/juce_audio_utils/juce_audio_utils.h"
-#include "../JUCE/modules/juce_gui_extra/juce_gui_extra.h"
-#include "../JUCE/modules/juce_product_unlocking/juce_product_unlocking.h"
-#include "../JUCE/modules/juce_opengl/juce_opengl.h"
-#include "../JUCE/modules/juce_dsp/juce_dsp.h"
-#include "../hi_streaming/hi_streaming.h"
+#include <juce_core/juce_core.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_audio_utils/juce_audio_utils.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_product_unlocking/juce_product_unlocking.h>
+#include <juce_opengl/juce_opengl.h>
+#include <juce_dsp/juce_dsp.h>
+#include <hi_streaming/hi_streaming.h>
 
 
 #include <complex>
