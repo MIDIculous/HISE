@@ -106,7 +106,7 @@ MainController::~MainController()
 
 
 //    sampleManager = nullptr;
-	Logger::setCurrentLogger(nullptr);
+//    Logger::setCurrentLogger(nullptr);
 	logger = nullptr;
 	masterReference.clear();
 	customTypeFaces.clear();
@@ -789,7 +789,7 @@ void MainController::prepareToPlay(double sampleRate_, int samplesPerBlock)
 	if (logger == nullptr)
 	{
 		logger = new ConsoleLogger(getMainSynthChain());
-		Logger::setCurrentLogger(logger);
+//        Logger::setCurrentLogger(logger);
 	}
 
 #endif
