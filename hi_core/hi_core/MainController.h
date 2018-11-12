@@ -713,7 +713,7 @@ public:
 	const KillStateHandler& getKillStateHandler() const { return killStateHandler; };
 #if USE_BACKEND
 	/** Writes to the console. */
-	void writeToConsole(const String &message, int warningLevel, const Processor *p=nullptr, Colour c=Colours::transparentBlack);
+	virtual void writeToConsole(const String &message, int warningLevel, const Processor *p=nullptr, Colour c=Colours::transparentBlack);
 #endif
 
 	void loadPresetFromFile(const File &f, Component *mainEditor=nullptr);

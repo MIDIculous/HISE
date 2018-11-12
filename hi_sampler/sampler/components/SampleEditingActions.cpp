@@ -1151,6 +1151,10 @@ void SampleEditHandler::SampleEditingActions::automapUsingMetadata(ModulatorSamp
 			{
 				metadataWasFound = true;
 			}
+            else
+            {
+                debugError(sampler, "Did not find metadata for sample: " + f.getFullPathName());
+            }
 		}
 	}
 
