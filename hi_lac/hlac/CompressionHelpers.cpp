@@ -1066,26 +1066,28 @@ bool CompressionHelpers::Misc::validateChecksum(uint32 data)
 	return (uint16)(bytes[0] * bytes[1]) == product;
 }
 
-#define CHECK_FLAG(x) readAndCheckFlag(fis, x)
+#define CHECK_FLAG(x) if (!readAndCheckFlag(fis, x)) return false;
+#define ASSERT_OR_FAIL(expression) if (!(expression)) {jassertfalse; if (listener) { listener->logStatusMessage("Assertion failed: " #expression); } return false; }
 
 #define VERBOSE_LOG(x) listener->logVerboseMessage(x)
 #define STATUS_LOG(x) listener->logStatusMessage(x)
 
 bool HlacArchiver::extractSampleData(const DecompressData& data)
 {
-	jassert(listener != nullptr);
-	jassert(thread != nullptr);
+	ASSERT_OR_FAIL(listener != nullptr);
+	ASSERT_OR_FAIL(thread != nullptr);
 
 	auto sourceFile = data.sourceFile;
 	auto targetDirectory = data.targetDirectory;
 	auto option = data.option;
-	
-	Array<File> parts;
 
-	sourceFile.getParentDirectory().findChildFiles(parts, File::findFiles, false, sourceFile.getFileNameWithoutExtension() + ".*");
+	const Array<File> parts = sourceFile.getParentDirectory().findChildFiles(File::findFiles, false, sourceFile.getFileNameWithoutExtension() + ".*");
 
 	const int numParts = parts.size();
-
+    if (numParts <= 0) {
+        STATUS_LOG("numParts is 0; stopping.");
+        return false;
+    }
 
 
 	ScopedPointer<FileInputStream> fis = new FileInputStream(sourceFile);
@@ -1140,15 +1142,18 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 		
 		if (targetHlacFile.existsAsFile() && option == OverwriteOption::ForceOverwrite)
 		{
-			targetHlacFile.deleteFile();
+			if (!targetHlacFile.deleteFile())
+                return false;
 		}
 
 		if (targetHlacFile.existsAsFile() && option == OverwriteOption::OverwriteIfNewer)
 		{
 			Time existingTime = targetHlacFile.getCreationTime();
 
-			if (archiveTime > existingTime)
-				targetHlacFile.deleteFile();
+            if (archiveTime > existingTime) {
+                if (!targetHlacFile.deleteFile())
+                    return false;
+            }
 		}
 
 		if (overwriteThisFile)
@@ -1157,8 +1162,10 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			File tmpFlacFile = targetHlacFile.getSiblingFile("TmpFlac.flac");
 
-			if (tmpFlacFile.existsAsFile())
-				tmpFlacFile.deleteFile();
+            if (tmpFlacFile.existsAsFile()) {
+				if (!tmpFlacFile.deleteFile())
+                    return false;
+            }
 
 			ScopedPointer<FileOutputStream> flacTempWriteStream = new FileOutputStream(tmpFlacFile);
 
@@ -1197,7 +1204,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			}
 
-			jassert(currentFlag == Flag::EndMonolith);
+			ASSERT_OR_FAIL(currentFlag == Flag::EndMonolith);
 			flacTempWriteStream->flush();
 			flacTempWriteStream = nullptr;
 
@@ -1239,7 +1246,8 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			writer = nullptr;
 
 			flacReader = nullptr;
-			tmpFlacFile.deleteFile();
+			if (!tmpFlacFile.deleteFile())
+                return false;
 			currentFlag = readFlag(fis);
 		}
 		else
@@ -1274,17 +1282,33 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 				currentFlag = readFlag(fis);
 			}
 
-			jassert(currentFlag == Flag::EndMonolith);
+			ASSERT_OR_FAIL(currentFlag == Flag::EndMonolith);
 			currentFlag = readFlag(fis);
 		}
 	}
 
-	jassert(currentFlag == Flag::EndOfArchive);
+	ASSERT_OR_FAIL(currentFlag == Flag::EndOfArchive);
 
 	return true;
 }
+    
+bool HlacArchiver::readAndCheckFlag(FileInputStream* fis, Flag flag)
+{
+    VERBOSE_LOG("    R " + getFlagName(flag));
+    
+    if (fis != nullptr)
+    {
+        const Flag actualFlag = (Flag)fis->readInt();
+        ASSERT_OR_FAIL(actualFlag == flag);
+        return actualFlag == flag;
+    }
+    
+    return false;
+}
 
 #undef CHECK_FLAG
+    
+#undef ASSERT_OR_FAIL
 
 #define WRITE_FLAG(x) writeFlag(fos, x)
 
@@ -1519,20 +1543,6 @@ bool HlacArchiver::writeFlag(FileOutputStream* fos, Flag flag)
 
 	if (fos != nullptr)
 		return fos->writeInt((int)flag);
-
-	return false;
-}
-
-bool HlacArchiver::readAndCheckFlag(FileInputStream* fis, Flag flag)
-{
-	VERBOSE_LOG("    R " + getFlagName(flag));
-
-	if (fis != nullptr)
-	{
-		const Flag actualFlag = (Flag)fis->readInt();
-		jassert(actualFlag == flag);
-		return actualFlag == flag;
-	}
 
 	return false;
 }
