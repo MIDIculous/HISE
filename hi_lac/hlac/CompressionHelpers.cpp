@@ -1067,7 +1067,7 @@ bool CompressionHelpers::Misc::validateChecksum(uint32 data)
 }
 
 #define CHECK_FLAG(x) if (!readAndCheckFlag(fis, x)) return false;
-#define ASSERT_OR_FAIL(expression) if (!(expression)) {jassertfalse; if (listener) { listener->logStatusMessage("Assertion failed: " #expression); } return false; }
+#define ASSERT_OR_FAIL(expression) if (!(expression)) {jassertfalse; if (listener) { listener->logStatusMessage(__FILE__ ":" JUCE_STRINGIFY(__LINE__) " Assertion failed: " #expression); } return false; }
 
 #define VERBOSE_LOG(x) listener->logVerboseMessage(x)
 #define STATUS_LOG(x) listener->logStatusMessage(x)
