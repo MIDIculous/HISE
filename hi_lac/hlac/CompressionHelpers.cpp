@@ -1142,18 +1142,15 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 		
 		if (targetHlacFile.existsAsFile() && option == OverwriteOption::ForceOverwrite)
 		{
-			if (!targetHlacFile.deleteFile())
-                return false;
+			targetHlacFile.deleteFile();
 		}
 
 		if (targetHlacFile.existsAsFile() && option == OverwriteOption::OverwriteIfNewer)
 		{
 			Time existingTime = targetHlacFile.getCreationTime();
 
-            if (archiveTime > existingTime) {
-                if (!targetHlacFile.deleteFile())
-                    return false;
-            }
+            if (archiveTime > existingTime)
+                targetHlacFile.deleteFile();
 		}
 
 		if (overwriteThisFile)
@@ -1162,10 +1159,8 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			File tmpFlacFile = targetHlacFile.getSiblingFile("TmpFlac.flac");
 
-            if (tmpFlacFile.existsAsFile()) {
-				if (!tmpFlacFile.deleteFile())
-                    return false;
-            }
+            if (tmpFlacFile.existsAsFile())
+                tmpFlacFile.deleteFile();
 
 			ScopedPointer<FileOutputStream> flacTempWriteStream = new FileOutputStream(tmpFlacFile);
 
@@ -1246,8 +1241,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			writer = nullptr;
 
 			flacReader = nullptr;
-			if (!tmpFlacFile.deleteFile())
-                return false;
+            tmpFlacFile.deleteFile();
 			currentFlag = readFlag(fis);
 		}
 		else
