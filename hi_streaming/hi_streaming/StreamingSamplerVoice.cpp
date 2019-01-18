@@ -32,754 +32,807 @@
 
 namespace hise { using namespace juce;
 
+namespace {
+    static bool checkSampleData(bool isLeftChannel, const float* data, int numSamples)
+    {
+        //if (location <= locationForErrorInCurrentCallback) // poor man's stack trace
+        //    return true;
+
+        auto range = FloatVectorOperations::findMinAndMax(data, numSamples);
+
+        const float maxValue = 32.0f;
+
+        double errorValue = 0.0;
+        bool isError = false;
+        int numFaultySamples = 0;
+
+        if (range.getEnd() > maxValue) {
+            isError = true;
+
+            errorValue = range.getEnd();
+
+            for (int i = 0; i < numSamples; i++) {
+                if (data[i] > maxValue)
+                    numFaultySamples++;
+            }
+        }
+
+        if (range.getStart() < -maxValue) {
+            isError = true;
+
+            errorValue = range.getStart();
+
+            for (int i = 0; i < numSamples; i++) {
+                if (data[i] < -maxValue)
+                    numFaultySamples++;
+            }
+        }
+
+        if (isError) {
+            String failureType;
+            if (numFaultySamples == 1) {
+                failureType = isLeftChannel ? "ClickLeft" : "ClickRight";
+            }
+            else {
+                failureType = isLeftChannel ? "BurstLeft" : "BurstRight";
+            }
+            Logger::writeToLog("checkSampleData Error: " + failureType);
+            
+            return false;
+        }
+
+        return true;
+    }
+}
+
 // =============================================================================================================================================== SampleLoader methods
 
 SampleLoader::SampleLoader(SampleThreadPool *pool_) :
-	SampleThreadPoolJob("SampleLoader"),
-	backgroundPool(pool_),
+    SampleThreadPoolJob("SampleLoader"),
+    backgroundPool(pool_),
     unmapper(std::make_shared<Unmapper>()),
-	writeBufferIsBeingFilled(false),
-	sound(0),
-	readIndex(0),
-	readIndexDouble(0.0),
-	idealBufferSize(0),
-	minimumBufferSizeForSamplesPerBlock(0),
-	positionInSampleFile(0),
-	isReadingFromPreloadBuffer(true),
-	sampleStartModValue(0),
-	readBuffer(nullptr),
-	writeBuffer(nullptr),
-	diskUsage(0.0),
-	lastCallToRequestData(0.0),
-	b1(true, 2, 0),
-	b2(true, 2, 0)
+    writeBufferIsBeingFilled(false),
+    sound(0),
+    readIndex(0),
+    readIndexDouble(0.0),
+    idealBufferSize(0),
+    minimumBufferSizeForSamplesPerBlock(0),
+    positionInSampleFile(0),
+    isReadingFromPreloadBuffer(true),
+    sampleStartModValue(0),
+    readBuffer(nullptr),
+    writeBuffer(nullptr),
+    diskUsage(0.0),
+    lastCallToRequestData(0.0),
+    b1(true, 2, 0),
+    b2(true, 2, 0)
 {
-	unmapper->setLoader(this);
+    unmapper->setLoader(this);
 
-	setBufferSize(BUFFER_SIZE_FOR_STREAM_BUFFERS);
+    setBufferSize(BUFFER_SIZE_FOR_STREAM_BUFFERS);
 }
 
 SampleLoader::~SampleLoader()
 {
     unmapper = nullptr;
-	b1.setSize(2, 0);
-	b2.setSize(2, 0);
+    b1.setSize(2, 0);
+    b2.setSize(2, 0);
 }
 
 /** Sets the buffer size in samples. */
 void SampleLoader::setBufferSize(int newBufferSize)
 {
-	ScopedLock sl(getLock());
+    ScopedLock sl(getLock());
 
-#if HISE_IOS 
+#if HISE_IOS
 
-	// because of memory
-	idealBufferSize = 4096;
+    // because of memory
+    idealBufferSize = 4096;
 #else
-	idealBufferSize = newBufferSize;
+    idealBufferSize = newBufferSize;
 #endif
 
-	refreshBufferSizes();
+    refreshBufferSizes();
 }
 
 bool SampleLoader::assertBufferSize(int minimumBufferSize)
 {
-	minimumBufferSizeForSamplesPerBlock = minimumBufferSize;
+    minimumBufferSizeForSamplesPerBlock = minimumBufferSize;
 
-	refreshBufferSizes();
+    refreshBufferSizes();
 
-	return true;
+    return true;
 }
 
 void SampleLoader::startNote(StreamingSamplerSound const *s, int startTime)
 {
-	diskUsage = 0.0;
+    diskUsage = 0.0;
 
-	sound = s;
+    sound = s;
 
-	s->wakeSound();
+    s->wakeSound();
 
-	sampleStartModValue = (int)startTime;
+    sampleStartModValue = (int)startTime;
 
-	auto localReadBuffer = &s->getPreloadBuffer();
-	auto localWriteBuffer = &b1;
+    auto localReadBuffer = &s->getPreloadBuffer();
+    auto localWriteBuffer = &b1;
 
-	// the read pointer will be pointing directly to the preload buffer of the sample sound
-	readBuffer = localReadBuffer;
-	writeBuffer = localWriteBuffer;
+    // the read pointer will be pointing directly to the preload buffer of the sample sound
+    readBuffer = localReadBuffer;
+    writeBuffer = localWriteBuffer;
 
-	lastSwapPosition = 0.0;
+    lastSwapPosition = 0.0;
 
-	readIndex = startTime;
-	readIndexDouble = (double)startTime;
+    readIndex = startTime;
+    readIndexDouble = (double)startTime;
 
-	isReadingFromPreloadBuffer = true;
+    isReadingFromPreloadBuffer = true;
 
-	// Set the sampleposition to (1 * bufferSize) because the first buffer is the preload buffer
-	positionInSampleFile = (int)localReadBuffer->getNumSamples();
+    // Set the sampleposition to (1 * bufferSize) because the first buffer is the preload buffer
+    positionInSampleFile = (int)localReadBuffer->getNumSamples();
 
-	voiceCounterWasIncreased = false;
+    voiceCounterWasIncreased = false;
 
-	entireSampleIsLoaded = s->isEntireSampleLoaded();
+    entireSampleIsLoaded = s->isEntireSampleLoaded();
 
-	if (!entireSampleIsLoaded)
-	{
-		// The other buffer will be filled on the next free thread pool slot
-		requestNewData();
-	}
+    if (!entireSampleIsLoaded)
+    {
+        // The other buffer will be filled on the next free thread pool slot
+        requestNewData();
+    }
 };
 
 void SampleLoader::reset()
 {
-	const StreamingSamplerSound *currentSound = sound.get();
+    const StreamingSamplerSound *currentSound = sound.get();
 
-	if (currentSound != nullptr)
-	{
-		const bool isMonolith = currentSound->isMonolithic();
+    if (currentSound != nullptr)
+    {
+        const bool isMonolith = currentSound->isMonolithic();
 
-		if (isMonolith)
-		{
-			currentSound->decreaseVoiceCount();
-			clearLoader();
-		}
-		else
-		{
-			// If the samples are not monolithic, we'll need to close the
-			// file handles on the background thread.
+        if (isMonolith)
+        {
+            currentSound->decreaseVoiceCount();
+            clearLoader();
+        }
+        else
+        {
+            // If the samples are not monolithic, we'll need to close the
+            // file handles on the background thread.
 
-			unmapper->setSoundToUnmap(currentSound);
+            unmapper->setSoundToUnmap(currentSound);
 
-			backgroundPool->addJob(unmapper, false);
+            backgroundPool->addJob(unmapper, false);
 
-			clearLoader();
-		}
-	}
+            clearLoader();
+        }
+    }
 }
 
 void SampleLoader::clearLoader()
 {
-	sound = nullptr;
-	diskUsage = 0.0f;
-	cancelled = false;
+    sound = nullptr;
+    diskUsage = 0.0f;
+    cancelled = false;
 }
 
 double SampleLoader::getDiskUsage() noexcept
 {
-	const double returnValue = (double)diskUsage.get();
-	diskUsage = 0.0f;
-	return returnValue;
+    const double returnValue = (double)diskUsage.get();
+    diskUsage = 0.0f;
+    return returnValue;
 }
 
 void SampleLoader::setStreamingBufferDataType(bool shouldBeFloat)
 {
-	ScopedLock sl(getLock());
+    ScopedLock sl(getLock());
 
-	b1 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
-	b2 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
+    b1 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
+    b2 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
 
-	refreshBufferSizes();
+    refreshBufferSizes();
 }
 
 StereoChannelData SampleLoader::fillVoiceBuffer(hlac::HiseSampleBuffer &voiceBuffer, double numSamples) const
 {
-	auto localReadBuffer = readBuffer.get();
-	auto localWriteBuffer = writeBuffer.get();
+    auto localReadBuffer = readBuffer.get();
+    auto localWriteBuffer = writeBuffer.get();
 
-	const int numSamplesInBuffer = localReadBuffer->getNumSamples();
-	const int maxSampleIndexForFillOperation = (int)(readIndexDouble + numSamples) + 1; // Round up the samples
+    const int numSamplesInBuffer = localReadBuffer->getNumSamples();
+    const int maxSampleIndexForFillOperation = (int)(readIndexDouble + numSamples) + 1; // Round up the samples
 
-	if (maxSampleIndexForFillOperation >= numSamplesInBuffer) // Check because of preloadbuffer style
-	{
-		const int indexBeforeWrap = jmax<int>(0, (int)(readIndexDouble));
-		const int numSamplesInFirstBuffer = localReadBuffer->getNumSamples() - indexBeforeWrap;
+    if (maxSampleIndexForFillOperation >= numSamplesInBuffer) // Check because of preloadbuffer style
+    {
+        const int indexBeforeWrap = jmax<int>(0, (int)(readIndexDouble));
+        const int numSamplesInFirstBuffer = localReadBuffer->getNumSamples() - indexBeforeWrap;
 
-		jassert(numSamplesInFirstBuffer >= 0);
+        jassert(numSamplesInFirstBuffer >= 0);
 
-		if (numSamplesInFirstBuffer > 0)
-		{
-			hlac::HiseSampleBuffer::copy(voiceBuffer, *localReadBuffer, 0, indexBeforeWrap, numSamplesInFirstBuffer);
-		}
+        if (numSamplesInFirstBuffer > 0)
+        {
+            hlac::HiseSampleBuffer::copy(voiceBuffer, *localReadBuffer, 0, indexBeforeWrap, numSamplesInFirstBuffer);
+        }
 
-		const int offset = numSamplesInFirstBuffer;
-		const int numSamplesAvailableInSecondBuffer = localWriteBuffer->getNumSamples() - offset;
+        const int offset = numSamplesInFirstBuffer;
+        const int numSamplesAvailableInSecondBuffer = localWriteBuffer->getNumSamples() - offset;
 
-		if ((numSamplesAvailableInSecondBuffer > 0) && (numSamplesAvailableInSecondBuffer <= localWriteBuffer->getNumSamples()))
-		{
-			const int numSamplesToCopyFromSecondBuffer = jmin<int>(numSamplesAvailableInSecondBuffer, voiceBuffer.getNumSamples() - offset);
+        if ((numSamplesAvailableInSecondBuffer > 0) && (numSamplesAvailableInSecondBuffer <= localWriteBuffer->getNumSamples()))
+        {
+            const int numSamplesToCopyFromSecondBuffer = jmin<int>(numSamplesAvailableInSecondBuffer, voiceBuffer.getNumSamples() - offset);
 
-			if (writeBufferIsBeingFilled || entireSampleIsLoaded)
-			{
-				voiceBuffer.clear(offset, numSamplesToCopyFromSecondBuffer);
-			}
-			else
-			{
-				hlac::HiseSampleBuffer::copy(voiceBuffer, *localWriteBuffer, offset, 0, numSamplesToCopyFromSecondBuffer);
-			}
-		}
-		else
-		{
-			// The streaming buffers must be greater than the block size!
-			jassertfalse;
+            if (writeBufferIsBeingFilled || entireSampleIsLoaded)
+            {
+                voiceBuffer.clear(offset, numSamplesToCopyFromSecondBuffer);
+            }
+            else
+            {
+                hlac::HiseSampleBuffer::copy(voiceBuffer, *localWriteBuffer, offset, 0, numSamplesToCopyFromSecondBuffer);
+            }
+        }
+        else
+        {
+            // The streaming buffers must be greater than the block size!
+            jassertfalse;
 
-			voiceBuffer.clear();
-		}
+            voiceBuffer.clear();
+        }
 
-		StereoChannelData returnData;
+        StereoChannelData returnData;
 
-		returnData.isFloatingPoint = localReadBuffer->isFloatingPoint();
-		returnData.leftChannel = voiceBuffer.getReadPointer(0);
-		returnData.rightChannel = voiceBuffer.getReadPointer(1);
+        returnData.isFloatingPoint = localReadBuffer->isFloatingPoint();
+        returnData.leftChannel = voiceBuffer.getReadPointer(0);
+        returnData.rightChannel = voiceBuffer.getReadPointer(1);
 
 #if USE_SAMPLE_DEBUG_COUNTER
 
-		const float *l = voiceBuffer.getReadPointer(0, 0);
-		const float *r = voiceBuffer.getReadPointer(1, 0);
+        const float *l = voiceBuffer.getReadPointer(0, 0);
+        const float *r = voiceBuffer.getReadPointer(1, 0);
 
-		float ll = l[0];
-		float lr = r[0];
+        float ll = l[0];
+        float lr = r[0];
 
-		for (int i = 1; i < voiceBuffer.getNumSamples(); i++)
-		{
-			const float tl = l[i];
-			const float tr = r[i];
+        for (int i = 1; i < voiceBuffer.getNumSamples(); i++)
+        {
+            const float tl = l[i];
+            const float tr = r[i];
 
-			jassert(tl == tr);
-			jassert(tl - ll == 1.0f);
-			ll = tl;
-			lr = tr;
-		}
+            jassert(tl == tr);
+            jassert(tl - ll == 1.0f);
+            ll = tl;
+            lr = tr;
+        }
 #endif
 
-		return returnData;
-	}
-	else
-	{
-		const int index = (int)readIndexDouble;
+        return returnData;
+    }
+    else
+    {
+        const int index = (int)readIndexDouble;
 
-		StereoChannelData returnData;
+        StereoChannelData returnData;
 
-		returnData.isFloatingPoint = localReadBuffer->isFloatingPoint();
-		returnData.leftChannel = localReadBuffer->getReadPointer(0, index);
-		returnData.rightChannel = localReadBuffer->getReadPointer(localReadBuffer->getNumChannels() > 1 ? 1 : 0, index);
+        returnData.isFloatingPoint = localReadBuffer->isFloatingPoint();
+        returnData.leftChannel = localReadBuffer->getReadPointer(0, index);
+        returnData.rightChannel = localReadBuffer->getReadPointer(localReadBuffer->getNumChannels() > 1 ? 1 : 0, index);
 
-		return returnData;
-	}
+        return returnData;
+    }
 }
 
 bool SampleLoader::advanceReadIndex(double uptime)
 {
-	const int numSamplesInBuffer = readBuffer.get()->getNumSamples();
-	readIndexDouble = uptime - lastSwapPosition;
+    const int numSamplesInBuffer = readBuffer.get()->getNumSamples();
+    readIndexDouble = uptime - lastSwapPosition;
 
-	if (readIndexDouble >= numSamplesInBuffer)
-	{
-		if (entireSampleIsLoaded)
-		{
-			return true;
-		}
-		else
-		{
-			lastSwapPosition = (double)positionInSampleFile;
-			positionInSampleFile += getNumSamplesForStreamingBuffers();
-			readIndexDouble = uptime - lastSwapPosition;
+    if (readIndexDouble >= numSamplesInBuffer)
+    {
+        if (entireSampleIsLoaded)
+        {
+            return true;
+        }
+        else
+        {
+            lastSwapPosition = (double)positionInSampleFile;
+            positionInSampleFile += getNumSamplesForStreamingBuffers();
+            readIndexDouble = uptime - lastSwapPosition;
 
-			swapBuffers();
-			const bool queueIsFree = requestNewData();
+            swapBuffers();
+            const bool queueIsFree = requestNewData();
 
-			return queueIsFree;
-		}
+            return queueIsFree;
+        }
 
-		
-	}
+        
+    }
 
-	return true;
+    return true;
 }
 
 int SampleLoader::getNumSamplesForStreamingBuffers() const
 {
-	jassert(b1.getNumSamples() == b2.getNumSamples());
+    jassert(b1.getNumSamples() == b2.getNumSamples());
 
-	return b1.getNumSamples();
+    return b1.getNumSamples();
 }
 
 bool SampleLoader::requestNewData()
 {
 #if KILL_VOICES_WHEN_STREAMING_IS_BLOCKED
-	if (this->isQueued())
-	{
-		writeBuffer.get()->clear();
+    if (this->isQueued())
+    {
+        writeBuffer.get()->clear();
         
 #if LOG_SAMPLE_RENDERING
         Logger::writeToLog("hi_streaming KILL_VOICES_WHEN_STREAMING_IS_BLOCKED: Voice killed.");
 #endif
 
-		cancelled = true;
-		backgroundPool->notify();
-		return false;
-	}
-	else
-	{
-		backgroundPool->addJob(shared_from_this(), false);
-		return true;
-	}
+        cancelled = true;
+        backgroundPool->notify();
+        return false;
+    }
+    else
+    {
+        backgroundPool->addJob(shared_from_this(), false);
+        return true;
+    }
 #else
-	backgroundPool->addJob(shared_from_this(), false);
-	return true;
+    backgroundPool->addJob(shared_from_this(), false);
+    return true;
 #endif
 };
 
 
 SampleThreadPoolJob::JobStatus SampleLoader::runJob()
 {
-	if (cancelled)
-	{
-		cancelled = false;
-		return SampleThreadPoolJob::jobHasFinished;
-	}
+    if (cancelled)
+    {
+        cancelled = false;
+        return SampleThreadPoolJob::jobHasFinished;
+    }
 
-	const double readStart = Time::highResolutionTicksToSeconds(Time::getHighResolutionTicks());
+    const double readStart = Time::highResolutionTicksToSeconds(Time::getHighResolutionTicks());
 
-	if (writeBufferIsBeingFilled)
-	{
-		return SampleThreadPoolJob::jobNeedsRunningAgain;
-	}
+    if (writeBufferIsBeingFilled)
+    {
+        return SampleThreadPoolJob::jobNeedsRunningAgain;
+    }
 
-	writeBufferIsBeingFilled = true; // A poor man's mutex but gets the job done.
+    writeBufferIsBeingFilled = true; // A poor man's mutex but gets the job done.
 
-	const StreamingSamplerSound *localSound = sound.get();
+    const StreamingSamplerSound *localSound = sound.get();
 
-	if (!voiceCounterWasIncreased && localSound != nullptr)
-	{
-		localSound->increaseVoiceCount();
-		voiceCounterWasIncreased = true;
-	}
+    if (!voiceCounterWasIncreased && localSound != nullptr)
+    {
+        localSound->increaseVoiceCount();
+        voiceCounterWasIncreased = true;
+    }
 
-	fillInactiveBuffer();
+    fillInactiveBuffer();
 
-	writeBufferIsBeingFilled = false;
+    writeBufferIsBeingFilled = false;
 
-	const double readStop = Time::highResolutionTicksToSeconds(Time::getHighResolutionTicks());
-	const double readTime = (readStop - readStart);
-	const double timeSinceLastCall = readStop - lastCallToRequestData;
-	const float diskUsageThisTime = jmax<float>(diskUsage.get(), (float)(readTime / timeSinceLastCall));
-	diskUsage = diskUsageThisTime;
-	lastCallToRequestData = readStart;
+    const double readStop = Time::highResolutionTicksToSeconds(Time::getHighResolutionTicks());
+    const double readTime = (readStop - readStart);
+    const double timeSinceLastCall = readStop - lastCallToRequestData;
+    const float diskUsageThisTime = jmax<float>(diskUsage.get(), (float)(readTime / timeSinceLastCall));
+    diskUsage = diskUsageThisTime;
+    lastCallToRequestData = readStart;
 
-	return SampleThreadPoolJob::JobStatus::jobHasFinished;
+    return SampleThreadPoolJob::JobStatus::jobHasFinished;
 }
 
 size_t SampleLoader::getActualStreamingBufferSize() const
 {
-	return b1.getNumSamples() * 2 * 2;
+    return b1.getNumSamples() * 2 * 2;
 }
 
 void SampleLoader::fillInactiveBuffer()
 {
-	const StreamingSamplerSound *localSound = sound.get();
+    const StreamingSamplerSound *localSound = sound.get();
 
-	if (localSound == nullptr) return;
+    if (localSound == nullptr) return;
 
-	if (localSound != nullptr)
-	{
-		if (localSound->hasEnoughSamplesForBlock(positionInSampleFile + getNumSamplesForStreamingBuffers()))
-		{
-			localSound->fillSampleBuffer(*writeBuffer.get(), getNumSamplesForStreamingBuffers(), (int)positionInSampleFile);
-		}
-		else if (localSound->hasEnoughSamplesForBlock(positionInSampleFile))
-		{
-			const int numSamplesToFill = (int)localSound->getSampleLength() - positionInSampleFile;
-			const int numSamplesToClear = getNumSamplesForStreamingBuffers() - numSamplesToFill;
+    if (localSound != nullptr)
+    {
+        if (localSound->hasEnoughSamplesForBlock(positionInSampleFile + getNumSamplesForStreamingBuffers()))
+        {
+            localSound->fillSampleBuffer(*writeBuffer.get(), getNumSamplesForStreamingBuffers(), (int)positionInSampleFile);
+        }
+        else if (localSound->hasEnoughSamplesForBlock(positionInSampleFile))
+        {
+            const int numSamplesToFill = (int)localSound->getSampleLength() - positionInSampleFile;
+            const int numSamplesToClear = getNumSamplesForStreamingBuffers() - numSamplesToFill;
 
-			localSound->fillSampleBuffer(*writeBuffer.get(), numSamplesToFill, (int)positionInSampleFile);
+            localSound->fillSampleBuffer(*writeBuffer.get(), numSamplesToFill, (int)positionInSampleFile);
 
-			writeBuffer.get()->clear(numSamplesToFill, numSamplesToClear);
-		}
-		else
-		{
-			writeBuffer.get()->clear();
-		}
+            writeBuffer.get()->clear(numSamplesToFill, numSamplesToClear);
+        }
+        else
+        {
+            writeBuffer.get()->clear();
+        }
 
 #if LOG_SAMPLE_RENDERING
-		logger->checkAssertion(nullptr, DebugLogger::Location::SampleLoaderReadOperation, localSound != nullptr, 1174);
+        jassert(localSound != nullptr);
 #endif
 
 #if USE_SAMPLE_DEBUG_COUNTER
 
-		DBG(positionInSampleFile);
+        DBG(positionInSampleFile);
 
-		const float *l = writeBuffer.get()->getReadPointer(0);
-		const float *r = writeBuffer.get()->getReadPointer(1);
+        const float *l = writeBuffer.get()->getReadPointer(0);
+        const float *r = writeBuffer.get()->getReadPointer(1);
 
-		int co = (int)positionInSampleFile;
+        int co = (int)positionInSampleFile;
 
-		for (int i = 0; i < writeBuffer.get()->getNumSamples(); i++)
-		{
+        for (int i = 0; i < writeBuffer.get()->getNumSamples(); i++)
+        {
 
-			const float tl = l[i];
-			const float tr = r[i];
-			const float expected = (float)co;
+            const float tl = l[i];
+            const float tr = r[i];
+            const float expected = (float)co;
 
-			jassert(tl == tr);
-			jassert(tl == 0.0f || (abs(expected - tl) < 0.00001f));
+            jassert(tl == tr);
+            jassert(tl == 0.0f || (abs(expected - tl) < 0.00001f));
 
-			co++;
+            co++;
 
-		}
+        }
 #endif
-	}
+    }
 };
 
 void SampleLoader::refreshBufferSizes()
 {
-	const int numSamplesToUse = jmax<int>(idealBufferSize, minimumBufferSizeForSamplesPerBlock);
+    const int numSamplesToUse = jmax<int>(idealBufferSize, minimumBufferSizeForSamplesPerBlock);
 
-	if (getNumSamplesForStreamingBuffers() < numSamplesToUse)
-	{
-		StreamingHelpers::increaseBufferIfNeeded(b1, numSamplesToUse);
-		StreamingHelpers::increaseBufferIfNeeded(b2, numSamplesToUse);
+    if (getNumSamplesForStreamingBuffers() < numSamplesToUse)
+    {
+        StreamingHelpers::increaseBufferIfNeeded(b1, numSamplesToUse);
+        StreamingHelpers::increaseBufferIfNeeded(b2, numSamplesToUse);
 
-		readBuffer = &b1;
-		writeBuffer = &b2;
+        readBuffer = &b1;
+        writeBuffer = &b2;
 
-		reset();
-	}
+        reset();
+    }
 }
 
 bool SampleLoader::swapBuffers()
 {
-	auto localReadBuffer = readBuffer.get();
+    auto localReadBuffer = readBuffer.get();
 
-	if (localReadBuffer == &b1)
-	{
-		readBuffer = &b2;
-		writeBuffer = &b1;
-	}
-	else // This condition will also be true if the read pointer points at the preload buffer
-	{
-		readBuffer = &b1;
-		writeBuffer = &b2;
-	}
+    if (localReadBuffer == &b1)
+    {
+        readBuffer = &b2;
+        writeBuffer = &b1;
+    }
+    else // This condition will also be true if the read pointer points at the preload buffer
+    {
+        readBuffer = &b1;
+        writeBuffer = &b2;
+    }
 
-	isReadingFromPreloadBuffer = false;
-	sampleStartModValue = 0;
+    isReadingFromPreloadBuffer = false;
+    sampleStartModValue = 0;
 
-	return writeBufferIsBeingFilled == false;
+    return writeBufferIsBeingFilled == false;
 };
 
 // ==================================================================================================== StreamingSamplerVoice methods
 
 StreamingSamplerVoice::StreamingSamplerVoice(SampleThreadPool *pool) :
     loader(std::make_shared<SampleLoader>(pool)),
-	sampleStartModValue(0)
+    sampleStartModValue(0)
 {
-	pitchData = nullptr;
+    pitchData = nullptr;
 };
 
 void StreamingSamplerVoice::startNote(int /*midiNoteNumber*/,
-	float /*velocity*/,
-	SynthesiserSound* s,
-	int /*currentPitchWheelPosition*/)
+    float /*velocity*/,
+    SynthesiserSound* s,
+    int /*currentPitchWheelPosition*/)
 {
-	StreamingSamplerSound *sound = dynamic_cast<StreamingSamplerSound*>(s);
+    StreamingSamplerSound *sound = dynamic_cast<StreamingSamplerSound*>(s);
 
-	if (sound != nullptr && sound->getSampleLength() > 0)
-	{
-		loader->startNote(sound, sampleStartModValue);
+    if (sound != nullptr && sound->getSampleLength() > 0)
+    {
+        loader->startNote(sound, sampleStartModValue);
 
-		jassert(sound != nullptr);
-		sound->wakeSound();
+        jassert(sound != nullptr);
+        sound->wakeSound();
 
-		voiceUptime = (double)sampleStartModValue;
+        voiceUptime = (double)sampleStartModValue;
 
-		// You have to call setPitchFactor() before startNote().
-		jassert(uptimeDelta != 0.0);
+        // You have to call setPitchFactor() before startNote().
+        jassert(uptimeDelta != 0.0);
 
-		// Resample if sound has different samplerate than the audio sample rate
-		uptimeDelta *= (sound->getSampleRate() / getSampleRate());
-		uptimeDelta = jmin<double>((double)MAX_SAMPLER_PITCH, uptimeDelta);
+        // Resample if sound has different samplerate than the audio sample rate
+        uptimeDelta *= (sound->getSampleRate() / getSampleRate());
+        uptimeDelta = jmin<double>((double)MAX_SAMPLER_PITCH, uptimeDelta);
 
-		constUptimeDelta = uptimeDelta;
+        constUptimeDelta = uptimeDelta;
 
-		isActive = true;
+        isActive = true;
 
-	}
-	else
-	{
-		resetVoice();
-	}
+    }
+    else
+    {
+        resetVoice();
+    }
 }
 
 const StreamingSamplerSound * StreamingSamplerVoice::getLoadedSound()
 {
-	return loader->getLoadedSound();
+    return loader->getLoadedSound();
 }
 
 void StreamingSamplerVoice::setLoaderBufferSize(int newBufferSize)
 {
-	loader->setBufferSize(newBufferSize);
+    loader->setBufferSize(newBufferSize);
 }
 
 void StreamingSamplerVoice::stopNote(float, bool /*allowTailOff*/)
 {
-	clearCurrentNote();
-	loader->reset();
+    clearCurrentNote();
+    loader->reset();
 }
 
 void StreamingSamplerVoice::setDebugLogger(DebugLogger* newLogger)
 {
-	logger = newLogger;
-	loader->setLogger(logger);
+    logger = newLogger;
+    loader->setLogger(logger);
 }
 
 template <typename SignalType> void interpolateStereoSamples(const SignalType* inL, const SignalType* inR, const float* pitchData, float* outL, float* outR, int startSample, double indexInBuffer, double uptimeDelta, int numSamples, bool isFloat)
 {
-	const float gainFactor = isFloat ? 1.0f : (1.0f / (float)INT16_MAX);
+    const float gainFactor = isFloat ? 1.0f : (1.0f / (float)INT16_MAX);
 
-	if (pitchData != nullptr)
-	{
-		pitchData += startSample;
+    if (pitchData != nullptr)
+    {
+        pitchData += startSample;
 
-		float indexInBufferFloat = (float)indexInBuffer;
+        float indexInBufferFloat = (float)indexInBuffer;
 
-		for (int i = 0; i < numSamples; i++)
-		{
-			const int pos = int(indexInBufferFloat);
-			const float alpha = indexInBufferFloat - (float)pos;
-			const float invAlpha = 1.0f - alpha;
+        for (int i = 0; i < numSamples; i++)
+        {
+            const int pos = int(indexInBufferFloat);
+            const float alpha = indexInBufferFloat - (float)pos;
+            const float invAlpha = 1.0f - alpha;
 
-			float l = ((float)inL[pos] * invAlpha + (float)inL[pos + 1] * alpha);
-			float r = ((float)inR[pos] * invAlpha + (float)inR[pos + 1] * alpha);
+            float l = ((float)inL[pos] * invAlpha + (float)inL[pos + 1] * alpha);
+            float r = ((float)inR[pos] * invAlpha + (float)inR[pos + 1] * alpha);
 
-			outL[i] = l * gainFactor;
-			outR[i] = r * gainFactor;
+            outL[i] = l * gainFactor;
+            outR[i] = r * gainFactor;
 
-			jassert(*pitchData <= (float)MAX_SAMPLER_PITCH);
+            jassert(*pitchData <= (float)MAX_SAMPLER_PITCH);
 
-			indexInBufferFloat += pitchData[i];
-		}
-	}
-	else
-	{
+            indexInBufferFloat += pitchData[i];
+        }
+    }
+    else
+    {
 
-		float indexInBufferFloat = (float)indexInBuffer;
-		const float uptimeDeltaFloat = (float)uptimeDelta;
+        float indexInBufferFloat = (float)indexInBuffer;
+        const float uptimeDeltaFloat = (float)uptimeDelta;
 
-		while (numSamples > 0)
-		{
-			const int pos = int(indexInBufferFloat);
-			const float alpha = indexInBufferFloat - (float)pos;
-			const float invAlpha = 1.0f - alpha;
+        while (numSamples > 0)
+        {
+            const int pos = int(indexInBufferFloat);
+            const float alpha = indexInBufferFloat - (float)pos;
+            const float invAlpha = 1.0f - alpha;
 
-			float l = ((float)inL[pos] * invAlpha + (float)inL[pos + 1] * alpha);
-			float r = ((float)inR[pos] * invAlpha + (float)inR[pos + 1] * alpha);
+            float l = ((float)inL[pos] * invAlpha + (float)inL[pos + 1] * alpha);
+            float r = ((float)inR[pos] * invAlpha + (float)inR[pos + 1] * alpha);
 
-			*outL++ = l * gainFactor;
-			*outR++ = r * gainFactor;
+            *outL++ = l * gainFactor;
+            *outR++ = r * gainFactor;
 
-			indexInBufferFloat += uptimeDeltaFloat;
+            indexInBufferFloat += uptimeDeltaFloat;
 
-			numSamples--;
-		}
-	}
+            numSamples--;
+        }
+    }
 }
 
 
 void StreamingSamplerVoice::renderNextBlock(AudioSampleBuffer &outputBuffer, int startSample, int numSamples)
 {
-	const StreamingSamplerSound *sound = loader->getLoadedSound();
+    const StreamingSamplerSound *sound = loader->getLoadedSound();
 
 #if USE_SAMPLE_DEBUG_COUNTER
-	const int startDebug = startSample;
-	const int numDebug = numSamples;
+    const int startDebug = startSample;
+    const int numDebug = numSamples;
 #endif
 
-	if (sound != nullptr)
-	{
-		const double startAlpha = fmod(voiceUptime, 1.0);
+    if (sound != nullptr)
+    {
+        const double startAlpha = fmod(voiceUptime, 1.0);
 
-		jassert(pitchCounter != 0);
+        jassert(pitchCounter != 0);
 
-		auto tempVoiceBuffer = getTemporaryVoiceBuffer();
+        auto tempVoiceBuffer = getTemporaryVoiceBuffer();
 
-		jassert(tempVoiceBuffer != nullptr);
+        jassert(tempVoiceBuffer != nullptr);
 
-		//tempVoiceBuffer->clear();
+        //tempVoiceBuffer->clear();
 
-		// Copy the not resampled values into the voice buffer.
-		StereoChannelData data = loader->fillVoiceBuffer(*tempVoiceBuffer, pitchCounter + startAlpha);
+        // Copy the not resampled values into the voice buffer.
+        StereoChannelData data = loader->fillVoiceBuffer(*tempVoiceBuffer, pitchCounter + startAlpha);
 
-		float* outL = outputBuffer.getWritePointer(0, startSample);
-		float* outR = outputBuffer.getWritePointer(1, startSample);
+        float* outL = outputBuffer.getWritePointer(0, startSample);
+        float* outR = outputBuffer.getWritePointer(1, startSample);
 
-		const int startFixed = startSample;
-		const int numSamplesFixed = numSamples;
+        const int startFixed = startSample;
+        const int numSamplesFixed = numSamples;
 
 
 #if USE_SAMPLE_DEBUG_COUNTER
-		jassert((int)voiceUptime == data.leftChannel[0]);
+        jassert((int)voiceUptime == data.leftChannel[0]);
 #endif
 
-		double indexInBuffer = startAlpha;
+        double indexInBuffer = startAlpha;
 
-		if (data.isFloatingPoint)
-		{
-			const float* const inL = static_cast<const float*>(data.leftChannel);
-			const float* const inR = static_cast<const float*>(data.rightChannel);
+        if (data.isFloatingPoint)
+        {
+            const float* const inL = static_cast<const float*>(data.leftChannel);
+            const float* const inR = static_cast<const float*>(data.rightChannel);
 
-			interpolateStereoSamples(inL, inR, pitchData, outL, outR, startSample, indexInBuffer, uptimeDelta, numSamples, true);
-		}
-		else
-		{
-			const int16* const inL = static_cast<const int16*>(data.leftChannel);
-			const int16* const inR = static_cast<const int16*>(data.rightChannel);
+            interpolateStereoSamples(inL, inR, pitchData, outL, outR, startSample, indexInBuffer, uptimeDelta, numSamples, true);
+        }
+        else
+        {
+            const int16* const inL = static_cast<const int16*>(data.leftChannel);
+            const int16* const inR = static_cast<const int16*>(data.rightChannel);
 
-			interpolateStereoSamples(inL, inR, pitchData, outL, outR, startSample, indexInBuffer, uptimeDelta, numSamples, false);
+            interpolateStereoSamples(inL, inR, pitchData, outL, outR, startSample, indexInBuffer, uptimeDelta, numSamples, false);
 
-		}
+        }
 
-#if USE_SAMPLE_DEBUG_COUNTER 
+#if USE_SAMPLE_DEBUG_COUNTER
 
-		for (int i = startDebug; i < numDebug; i++)
-		{
-			const float l = outputBuffer.getSample(0, i);
-			const float r = outputBuffer.getSample(1, i);
+        for (int i = startDebug; i < numDebug; i++)
+        {
+            const float l = outputBuffer.getSample(0, i);
+            const float r = outputBuffer.getSample(1, i);
 
-			jassert(l == r);
-			jassert((abs(l - voiceUptime) < 0.000001) || l == 0.0f);
+            jassert(l == r);
+            jassert((abs(l - voiceUptime) < 0.000001) || l == 0.0f);
 
-			voiceUptime += uptimeDelta;
+            voiceUptime += uptimeDelta;
 
-		}
+        }
 
-		outputBuffer.clear();
+        outputBuffer.clear();
 #else
-		voiceUptime += pitchCounter;
+        voiceUptime += pitchCounter;
 #endif
 
-		if (!loader->advanceReadIndex(voiceUptime))
-		{
+        if (!loader->advanceReadIndex(voiceUptime))
+        {
 #if LOG_SAMPLE_RENDERING
-			logger->addStreamingFailure(voiceUptime);
+            Logger::writeToLog("StreamingSamplerVoice::renderNextBlock error: Streaming failure with voiceUptime: " + String(voiceUptime));
 #endif
 
-			outputBuffer.clear(startFixed, numSamplesFixed);
+            outputBuffer.clear(startFixed, numSamplesFixed);
 
-			resetVoice();
-			return;
-		}
+            resetVoice();
+            return;
+        }
 
-		const bool enoughSamples = sound->hasEnoughSamplesForBlock((int)(voiceUptime));// +numSamples * MAX_SAMPLER_PITCH));
+        const bool enoughSamples = sound->hasEnoughSamplesForBlock((int)(voiceUptime));// +numSamples * MAX_SAMPLER_PITCH));
 
 #if LOG_SAMPLE_RENDERING
-		logger->checkSampleData(nullptr, DebugLogger::Location::SampleVoiceBufferFillPost, true, outputBuffer.getReadPointer(0, startFixed), numSamplesFixed);
-		logger->checkSampleData(nullptr, DebugLogger::Location::SampleVoiceBufferFillPost, false, outputBuffer.getReadPointer(1, startFixed), numSamplesFixed);
+        checkSampleData(true, outputBuffer.getReadPointer(0, startFixed), numSamplesFixed);
+        checkSampleData(false, outputBuffer.getReadPointer(1, startFixed), numSamplesFixed);
 #endif
 
-		if (!enoughSamples) resetVoice();
-	}
-	else
-	{
-		resetVoice();
-	}
+        if (!enoughSamples) resetVoice();
+    }
+    else
+    {
+        resetVoice();
+    }
 };
 
 void StreamingSamplerVoice::setPitchFactor(int midiNote, int rootNote, StreamingSamplerSound *sound, double globalPitchFactor)
 {
-	if (midiNote == rootNote)
-	{
-		uptimeDelta = jmin(globalPitchFactor, (double)MAX_SAMPLER_PITCH);
-	}
-	else
-	{
-		uptimeDelta = jmin(sound->getPitchFactor(midiNote, rootNote) * globalPitchFactor, (double)MAX_SAMPLER_PITCH);
-	}
+    if (midiNote == rootNote)
+    {
+        uptimeDelta = jmin(globalPitchFactor, (double)MAX_SAMPLER_PITCH);
+    }
+    else
+    {
+        uptimeDelta = jmin(sound->getPitchFactor(midiNote, rootNote) * globalPitchFactor, (double)MAX_SAMPLER_PITCH);
+    }
 }
 
 void StreamingSamplerVoice::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-	if (sampleRate != -1.0)
-	{
-		loader->assertBufferSize(samplesPerBlock * MAX_SAMPLER_PITCH);
+    if (sampleRate != -1.0)
+    {
+        loader->assertBufferSize(samplesPerBlock * MAX_SAMPLER_PITCH);
 
-		setCurrentPlaybackSampleRate(sampleRate);
-	}
+        setCurrentPlaybackSampleRate(sampleRate);
+    }
 }
 
 void StreamingSamplerVoice::resetVoice()
 {
-	voiceUptime = 0.0;
-	uptimeDelta = 0.0;
-	isActive = false;
-	loader->reset();
-	clearCurrentNote();
+    voiceUptime = 0.0;
+    uptimeDelta = 0.0;
+    isActive = false;
+    loader->reset();
+    clearCurrentNote();
 }
 
 void StreamingSamplerVoice::setSampleStartModValue(int newValue)
 {
-	jassert(newValue >= 0);
+    jassert(newValue >= 0);
 
-	sampleStartModValue = newValue;
+    sampleStartModValue = newValue;
 }
 
 hlac::HiseSampleBuffer * StreamingSamplerVoice::getTemporaryVoiceBuffer()
 {
-	jassert(tvb != nullptr);
+    jassert(tvb != nullptr);
 
-	return tvb;
+    return tvb;
 }
 
 void StreamingSamplerVoice::setTemporaryVoiceBuffer(hlac::HiseSampleBuffer* buffer)
 {
-	tvb = buffer;
+    tvb = buffer;
 }
 
 void StreamingSamplerVoice::initTemporaryVoiceBuffer(hlac::HiseSampleBuffer* bufferToUse, int samplesPerBlock)
 {
-	// The channel amount must be set correctly in the constructor
-	jassert(bufferToUse->getNumChannels() > 0);
+    // The channel amount must be set correctly in the constructor
+    jassert(bufferToUse->getNumChannels() > 0);
 
-	if (bufferToUse->getNumSamples() < samplesPerBlock*MAX_SAMPLER_PITCH)
-	{
-		bufferToUse->setSize(bufferToUse->getNumChannels(), samplesPerBlock*MAX_SAMPLER_PITCH);
-		bufferToUse->clear();
-	}
+    if (bufferToUse->getNumSamples() < samplesPerBlock*MAX_SAMPLER_PITCH)
+    {
+        bufferToUse->setSize(bufferToUse->getNumChannels(), samplesPerBlock*MAX_SAMPLER_PITCH);
+        bufferToUse->clear();
+    }
 }
 
 void StreamingSamplerVoice::setStreamingBufferDataType(bool shouldBeFloat)
 {
-	loader->setStreamingBufferDataType(shouldBeFloat);
+    loader->setStreamingBufferDataType(shouldBeFloat);
 }
 
 void SampleLoader::Unmapper::setLoader(SampleLoader *loader_)
 {
-	loader = loader_;
+    loader = loader_;
 }
 
 void SampleLoader::Unmapper::setSoundToUnmap(const StreamingSamplerSound *s)
 {
-	jassert(sound == nullptr);
-	sound = const_cast<StreamingSamplerSound *>(s);
+    jassert(sound == nullptr);
+    sound = const_cast<StreamingSamplerSound *>(s);
 }
 
 SampleThreadPool::Job::JobStatus SampleLoader::Unmapper::runJob()
 {
-	jassert(sound != nullptr);
+    jassert(sound != nullptr);
 
-	if (loader->isRunning())
-	{
-		jassertfalse;
-		return SampleThreadPoolJob::jobNeedsRunningAgain;
-	}
+    if (loader->isRunning())
+    {
+        jassertfalse;
+        return SampleThreadPoolJob::jobNeedsRunningAgain;
+    }
 
-	if (sound != nullptr)
-	{
-		sound->decreaseVoiceCount();
-		sound->closeFileHandle();
+    if (sound != nullptr)
+    {
+        sound->decreaseVoiceCount();
+        sound->closeFileHandle();
 
-		sound = nullptr;
-	}
+        sound = nullptr;
+    }
 
-	return SampleThreadPoolJob::jobHasFinished;
+    return SampleThreadPoolJob::jobHasFinished;
 }
 
 } // namespace hise
