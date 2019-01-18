@@ -122,9 +122,6 @@ struct StereoChannelData
 // This class is a spin off of my upcoming sampler framework, so in order to use it in another project, leave this at '1'
 #define STANDALONE 0
 
-// Set this to 1 to replace the sample content with indexes for debugging purposes (it will also mute the sound)
-#define USE_SAMPLE_DEBUG_COUNTER 0
-
 
 #if HISE_IOS
 // This is the maximum value for sample pitch manipulation (this means 3 octaves, which should be more than enough

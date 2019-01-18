@@ -88,7 +88,7 @@ void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
     
     ++pimpl->counter;
 
-#if ENABLE_CONSOLE_OUTPUT
+#if LOG_SAMPLE_RENDERING
 	if (j->isQueued())
 	{
 		Logger::writeToLog(pimpl->errorMessage);

@@ -82,6 +82,27 @@ Set this to true if you add this module to your existing C++ project and don't e
 #endif
 
 
+//=============================================================================
+/** Config: USE_SAMPLE_DEBUG_COUNTER
+ 
+ Set this to 1 to replace the sample content with indexes for debugging purposes (it will also mute the sound).
+ */
+#ifndef USE_SAMPLE_DEBUG_COUNTER
+#define USE_SAMPLE_DEBUG_COUNTER 0
+#endif
+
+
+//=============================================================================
+/** Config: LOG_SAMPLE_RENDERING
+ 
+ Set this to 1 to enable more logging.
+ */
+#ifndef LOG_SAMPLE_RENDERING
+#define LOG_SAMPLE_RENDERING 0
+#endif
+
+
+
 #include "hi_streaming/lockfree_fifo/readerwriterqueue.h"
 
 

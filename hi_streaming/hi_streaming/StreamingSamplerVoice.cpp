@@ -308,6 +308,10 @@ bool SampleLoader::requestNewData()
 	if (this->isQueued())
 	{
 		writeBuffer.get()->clear();
+        
+#if LOG_SAMPLE_RENDERING
+        Logger::writeToLog("hi_streaming KILL_VOICES_WHEN_STREAMING_IS_BLOCKED: Voice killed.");
+#endif
 
 		cancelled = true;
 		backgroundPool->notify();

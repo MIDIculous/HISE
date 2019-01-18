@@ -32,8 +32,6 @@
 
 namespace hise { using namespace juce;
 
-#define LOG_SAMPLE_RENDERING 0
-
 void StreamingHelpers::increaseBufferIfNeeded(hlac::HiseSampleBuffer& b, int numSamplesNeeded)
 {
 	// The channel amount must be set correctly in the constructor
