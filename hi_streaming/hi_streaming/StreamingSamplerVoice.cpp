@@ -32,6 +32,7 @@
 
 namespace hise { using namespace juce;
 
+#if LOG_SAMPLE_RENDERING
 namespace {
     static bool checkSampleData(bool isLeftChannel, const float* data, int numSamples)
     {
@@ -84,6 +85,7 @@ namespace {
         return true;
     }
 }
+#endif
 
 // =============================================================================================================================================== SampleLoader methods
 
