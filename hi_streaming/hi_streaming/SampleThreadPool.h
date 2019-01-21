@@ -33,82 +33,60 @@
 #ifndef SAMPLETHREADPOOL_H_INCLUDED
 #define SAMPLETHREADPOOL_H_INCLUDED
 
-namespace hise { using namespace juce;
+namespace hise {
+using namespace juce;
 
 class SampleThreadPool : public Thread
 {
 public:
+    SampleThreadPool();
 
-	SampleThreadPool();
+    ~SampleThreadPool();
 
-	~SampleThreadPool();
-	
 
-	class Job
-	{
-	public:
+    class Job
+    {
+    public:
+        Job() = default;
 
-		Job(const String &name_) : 
-			name(name_),
-			queued(false),
-			running(false),
-			shouldStop(false),
-            currentThread(nullptr)
-		{};
-        
-        virtual ~Job() { masterReference.clear(); }
+        enum JobStatus {
+            jobHasFinished = 0,
+            jobNeedsRunningAgain
+        };
 
-		enum JobStatus
-		{
-			jobHasFinished = 0,
-			jobNeedsRunningAgain
-		};
+        virtual JobStatus runJob() = 0;
 
-		virtual JobStatus runJob() = 0;
+        virtual String getName() = 0;
 
-		bool shouldExit() const noexcept{ return shouldStop.load(); }
+        bool shouldExit() const noexcept { return shouldExit_; }
 
-		void signalJobShouldExit() { shouldStop.store(true); }
+        void signalJobShouldExit() noexcept { shouldExit_ = true; }
 
-		bool isRunning() const noexcept{ return running.load(); };
+        void setRunning(bool running) noexcept { this->running = running; }
+        bool isRunning() const noexcept { return running; };
 
-		bool isQueued() const noexcept{ return queued.load(); };
+        void setQueued(bool queued) noexcept { this->queued = queued; }
+        bool isQueued() const noexcept { return queued; };
 
-	protected:
+    private:
+        std::atomic<bool> queued{ false };
+        std::atomic<bool> running{ false };
+        std::atomic<bool> shouldExit_{ false };
+    };
 
-		Thread* getCurrentThread() { return currentThread.load(); }
-
-	private:
-
-		friend class SampleThreadPool;
-        
-        friend class WeakReference<Job>;
-        WeakReference<Job>::Master masterReference;
-
-		std::atomic<bool> queued;
-
-		std::atomic<bool> running;
-
-		std::atomic<bool> shouldStop;
-
-		std::atomic<Thread*> currentThread;
-
-		const String name;
-	};
-
-	double getDiskUsage() const noexcept;
+    double getDiskUsage() const noexcept;
 
     void addJob(std::weak_ptr<Job> jobToAdd, bool unused);
 
-	void run() override;
+    void run() override;
 
-	struct Pimpl;
+private:
+    struct Pimpl;
 
-	ScopedPointer<Pimpl> pimpl;
-
+    const std::unique_ptr<Pimpl> pimpl;
 };
 
 typedef SampleThreadPool::Job SampleThreadPoolJob;
 
 } // namespace hise
-#endif  // SAMPLETHREADPOOL_H_INCLUDED
+#endif // SAMPLETHREADPOOL_H_INCLUDED

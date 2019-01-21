@@ -69,6 +69,8 @@ public:
 	*	The write buffer will be locked for the time of the read operation. Also it measures the time for getDiskUsage();
 	*/
 	JobStatus runJob() override;
+    
+    String getName() override;
 
 	size_t getActualStreamingBufferSize() const;
 
@@ -91,23 +93,18 @@ public:
 	class Unmapper : public SampleThreadPoolJob
 	{
 	public:
-
-		Unmapper() :
-			SampleThreadPoolJob("Unmapper"),
-			sound(nullptr),
-			loader(nullptr)
-		{};
+        Unmapper() = default;
 
 		void setLoader(SampleLoader *loader_);
 
 		void setSoundToUnmap(const StreamingSamplerSound *s);
 
 		JobStatus runJob() override;
+        String getName() override;
 
 	private:
-
-		StreamingSamplerSound *sound;
-		SampleLoader *loader;
+        StreamingSamplerSound *sound{nullptr};
+        SampleLoader *loader{nullptr};
 	};
 
 	/** Resets the loader (unloads the sound). */

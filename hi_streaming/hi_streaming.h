@@ -102,6 +102,18 @@ Set this to true if you add this module to your existing C++ project and don't e
 #endif
 
 
+//=============================================================================
+/** Config: LOG_POOL_ACTIVITY
+ 
+ Set this to 1 to enable logging in the sample thread pool, which streams samples in the background.
+ 
+ DO NOT use in production, allocates memory on the realtime audio thread.
+ */
+#ifndef LOG_POOL_ACTIVITY
+#define LOG_POOL_ACTIVITY 0
+#endif
+
+
 
 #include "hi_streaming/lockfree_fifo/readerwriterqueue.h"
 
