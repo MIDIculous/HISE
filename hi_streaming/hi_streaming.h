@@ -42,7 +42,7 @@ BEGIN_JUCE_MODULE_DECLARATION
   website:          http://hise.audio
   license:          GPL / Commercial
 
-  dependencies:     juce_audio_basics, juce_audio_devices, juce_audio_formats, juce_audio_processors, juce_core, juce_data_structures, juce_events, hi_lac, intel_ipp
+  dependencies:     gm_core, juce_audio_basics, juce_audio_devices, juce_audio_formats, juce_audio_processors, juce_core, juce_data_structures, juce_events, hi_lac, intel_ipp
   OSXFrameworks:    Accelerate
   iOSFrameworks:    Accelerate
 
@@ -112,10 +112,6 @@ Set this to true if you add this module to your existing C++ project and don't e
 #ifndef LOG_POOL_ACTIVITY
 #define LOG_POOL_ACTIVITY 0
 #endif
-
-
-
-#include "hi_streaming/lockfree_fifo/readerwriterqueue.h"
 
 
 
