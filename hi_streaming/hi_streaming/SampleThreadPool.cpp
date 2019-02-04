@@ -62,7 +62,7 @@ SampleThreadPool::SampleThreadPool()
 #if LOG_POOL_ACTIVITY
     Logger::writeToLog("SampleThreadPool(): Starting thread...");
 #endif
-    startThread(9);
+    startThread(Thread::realtimeAudioPriority);
 }
 
 SampleThreadPool::~SampleThreadPool()
