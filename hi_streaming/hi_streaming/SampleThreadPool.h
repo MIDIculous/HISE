@@ -76,7 +76,7 @@ public:
 
     double getDiskUsage() const noexcept;
 
-    void addJob(std::weak_ptr<Job> jobToAdd, bool unused);
+    void addJob(const std::weak_ptr<Job>& jobToAdd, bool unused);
 
     void run() override;
 

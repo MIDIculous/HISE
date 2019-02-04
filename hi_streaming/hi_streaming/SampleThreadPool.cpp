@@ -93,9 +93,9 @@ double SampleThreadPool::getDiskUsage() const noexcept
     return pimpl->diskUsage.load();
 }
 
-void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
+void SampleThreadPool::addJob(const std::weak_ptr<Job>& jobToAdd, bool)
 {
-    const auto j = jobToAdd.lock();
+    auto j = jobToAdd.lock();
     if (!j) {
 #if LOG_POOL_ACTIVITY
         Logger::writeToLog("SampleThreadPool::addJob(): Not adding job (already expired).");
@@ -116,7 +116,7 @@ void SampleThreadPool::addJob(std::weak_ptr<Job> jobToAdd, bool)
     Logger::writeToLog("SampleThreadPool::addJob(): Adding job: " + j->getName() + "...");
 #endif
     j->setQueued(true);
-    pimpl->jobQueue.enqueue(j);
+    pimpl->jobQueue.enqueue(std::move(j));
     notify();
 }
 
