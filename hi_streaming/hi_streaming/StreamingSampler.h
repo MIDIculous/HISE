@@ -144,7 +144,7 @@ struct StereoChannelData
 #define USE_BACKGROUND_THREAD 1
 
 // If the streaming background thread is blocked, it will kill the voice to exit gracefully.
-#define KILL_VOICES_WHEN_STREAMING_IS_BLOCKED 1
+#define KILL_VOICES_WHEN_STREAMING_IS_BLOCKED 0
 
 // By default, every voice adds its output to the supplied buffer. Depending on your architecture, it could be more practical to
 // set (overwrite) the buffer. In this case, set this to 1.
