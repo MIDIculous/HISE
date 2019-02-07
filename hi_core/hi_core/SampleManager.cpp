@@ -123,7 +123,6 @@ void MainController::SampleManager::PreloadListenerUpdater::handleAsyncUpdate()
 
 
 MainController::SampleManager::PreloadJob::PreloadJob(MainController* mc_) :
-	SampleThreadPoolJob("Internal Preloading"),
 	mc(mc_)
 {
 
@@ -149,6 +148,11 @@ SampleThreadPool::Job::JobStatus MainController::SampleManager::PreloadJob::runJ
 	mc->getSampleManager().clearPreloadFlag();
 
 	return SampleThreadPool::Job::jobHasFinished;
+}
+    
+String MainController::SampleManager::PreloadJob::getName()
+{
+    return "Internal Preloading";
 }
 
 void MainController::SampleManager::clearPreloadFlag()
