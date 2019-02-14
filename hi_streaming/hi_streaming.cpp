@@ -1,5 +1,6 @@
 
 #include "hi_streaming.h"
+#include <gm_core/gm_core.h>
 
 
 #include "hi_streaming/SampleThreadPool.cpp"

@@ -196,6 +196,7 @@ public:
 
 			PreloadJob(MainController* mc);
 			JobStatus runJob() override;
+            String getName() override;
 
 
 			double progress = 0.0;
