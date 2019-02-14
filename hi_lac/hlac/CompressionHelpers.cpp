@@ -1530,9 +1530,10 @@ File HlacArchiver::getPartFile(const File& originalFile, int partIndex)
 {
 	String newFileName = originalFile.getFileNameWithoutExtension() + ".hr" + String(partIndex);
 
-	VERBOSE_LOG("New Part " + newFileName);
+    const auto partFile = originalFile.getSiblingFile(newFileName);
+    VERBOSE_LOG("New Part file: " + partFile.getFileName() + (partFile.existsAsFile() ? " ( exists; size: " + String(partFile.getSize()) + " bytes)" : " (ERROR: File does not exist)"));
 
-	return originalFile.getSiblingFile(newFileName);
+	return partFile;
 }
 
 bool HlacArchiver::writeFlag(FileOutputStream* fos, Flag flag)
