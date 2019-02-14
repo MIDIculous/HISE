@@ -1088,6 +1088,10 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
         STATUS_LOG("numParts is 0; stopping.");
         return false;
     }
+    
+    STATUS_LOG("Found " + String(parts.size()) + " parts:");
+    for(const auto& part : parts)
+        STATUS_LOG("    " + part.getRelativePathFrom(sourceFile.getParentDirectory()) + (part.existsAsFile() ? (" (exists; size: " + String(part.getSize()) + " bytes)") : String(" (ERROR: File does not exist)")));
 
 
 	ScopedPointer<FileInputStream> fis = new FileInputStream(sourceFile);
