@@ -279,6 +279,7 @@ struct HlacArchiver
 		OverwriteOption option;
 		File sourceFile;
 		File targetDirectory;
+        size_t* currentPartIndex = nullptr;
 		double* progress = nullptr;
 		double* partProgress = nullptr;
 		double* totalProgress = nullptr;

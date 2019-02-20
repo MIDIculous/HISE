@@ -1108,6 +1108,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 	StringPairArray metadata;
 
 	int partIndex = 1;
+    *data.currentPartIndex = partIndex;
 
 	currentFlag = readFlag(fis);
 
@@ -1184,7 +1185,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			{
 				partIndex++;
 
-				
+                *data.currentPartIndex = partIndex;
 
 				fis = nullptr;
 
@@ -1264,7 +1265,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			{
 				partIndex++;
 
-				
+                *data.currentPartIndex = partIndex;
 
 				fis = nullptr;
 				fis = new FileInputStream(getPartFile(sourceFile, partIndex));
