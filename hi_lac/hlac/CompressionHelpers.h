@@ -310,6 +310,9 @@ struct HlacArchiver
 	{
 		listener = l;
 	}
+    
+    /** Returns the .hr* file for the given part index. */
+    static File getPartFile(const File& originalFile, int partIndex);
 
 private:
 
@@ -319,7 +322,7 @@ private:
 
 	String getFlagName(Flag f);
 
-	File getPartFile(const File& originalFile, int partIndex);
+    void logPartFile(const File& partFile);
 
 	bool writeFlag(FileOutputStream* fos, Flag flag);
 

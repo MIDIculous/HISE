@@ -1093,6 +1093,8 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
     for(const auto& part : parts)
         STATUS_LOG("    " + part.getRelativePathFrom(sourceFile.getParentDirectory()) + (part.existsAsFile() ? (" (exists; size: " + String(part.getSize()) + " bytes)") : String(" (ERROR: File does not exist)")));
 
+    int partIndex = 1;
+    *data.currentPartIndex = partIndex;
 
 	ScopedPointer<FileInputStream> fis = new FileInputStream(sourceFile);
 
@@ -1106,9 +1108,6 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 	VERBOSE_LOG(metadataString);
 
 	StringPairArray metadata;
-
-	int partIndex = 1;
-    *data.currentPartIndex = partIndex;
 
 	currentFlag = readFlag(fis);
 
@@ -1189,7 +1188,9 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 				fis = nullptr;
 
-				fis = new FileInputStream(getPartFile(sourceFile, partIndex));
+                const auto partFile = getPartFile(sourceFile, partIndex);
+                logPartFile(partFile);
+				fis = new FileInputStream(partFile);
 
 				CHECK_FLAG(Flag::BeginMonolithLength);
 				bytesToRead = fis->readInt64();
@@ -1268,7 +1269,9 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
                 *data.currentPartIndex = partIndex;
 
 				fis = nullptr;
-				fis = new FileInputStream(getPartFile(sourceFile, partIndex));
+                const auto partFile = getPartFile(sourceFile, partIndex);
+                logPartFile(partFile);
+				fis = new FileInputStream(partFile);
 
 				CHECK_FLAG(Flag::BeginMonolithLength);
 				bytesToSkip = fis->readInt64();
@@ -1459,7 +1462,9 @@ void HlacArchiver::compressSampleData(const CompressData& data)
 
 				partIndex++;
 
-				fos = new FileOutputStream(getPartFile(targetFile, partIndex));
+                const auto partFile = getPartFile(targetFile, partIndex);
+                logPartFile(partFile);
+				fos = new FileOutputStream(partFile);
 
 				bytesToWrite = jmin<int64>(data.partSize, tmpInput->getNumBytesRemaining());
 
@@ -1529,12 +1534,14 @@ String HlacArchiver::getFlagName(Flag f)
 
 File HlacArchiver::getPartFile(const File& originalFile, int partIndex)
 {
-	String newFileName = originalFile.getFileNameWithoutExtension() + ".hr" + String(partIndex);
+	const String newFileName = originalFile.getFileNameWithoutExtension() + ".hr" + String(partIndex);
 
-    const auto partFile = originalFile.getSiblingFile(newFileName);
+    return originalFile.getSiblingFile(newFileName);
+}
+    
+void HlacArchiver::logPartFile(const File& partFile)
+{
     VERBOSE_LOG("New Part file: " + partFile.getFileName() + (partFile.existsAsFile() ? " ( exists; size: " + String(partFile.getSize()) + " bytes)" : " (ERROR: File does not exist)"));
-
-	return partFile;
 }
 
 bool HlacArchiver::writeFlag(FileOutputStream* fos, Flag flag)
