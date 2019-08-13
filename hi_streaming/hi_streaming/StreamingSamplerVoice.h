@@ -305,7 +305,7 @@ private:
 
 	DebugLogger* logger = nullptr;
 
-    const std::shared_ptr<SampleLoader> loader;
+    std::shared_ptr<SampleLoader> loader;
 };
 
 } // namespace hise
