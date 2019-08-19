@@ -1081,7 +1081,8 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 	auto targetDirectory = data.targetDirectory;
 	auto option = data.option;
 
-	const Array<File> parts = sourceFile.getParentDirectory().findChildFiles(File::findFiles, false, sourceFile.getFileNameWithoutExtension() + ".*");
+    Array<File> parts;
+	sourceFile.getParentDirectory().findChildFiles(parts, File::findFiles, false, sourceFile.getFileNameWithoutExtension() + ".*");
 
 	const int numParts = parts.size();
     if (numParts <= 0) {
