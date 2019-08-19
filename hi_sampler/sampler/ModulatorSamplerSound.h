@@ -443,7 +443,7 @@ private:
 
 	BigInteger purgeChannels;
 
-	bool enableAsyncPropertyChange = true;
+	bool enableAsyncPropertyChange = false;
 
 	// ================================================================================================================
 
