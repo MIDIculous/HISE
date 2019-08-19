@@ -1048,7 +1048,7 @@ void ProjectHandler::restoreWorkingProjects()
 
 		setWorkingProject(current, nullptr);
 
-		jassert(currentWorkDirectory.exists() && currentWorkDirectory.isDirectory());
+//        jassert(currentWorkDirectory.exists() && currentWorkDirectory.isDirectory());
 
 		
 	}
@@ -1173,7 +1173,7 @@ bool ProjectHandler::anySubdirectoryExists(const File& possibleProjectFolder) co
 
 File ProjectHandler::getSubDirectory(SubDirectories dir) const
 {
-    jassert(isActive());
+//    jassert(isActive());
     
 	return subDirectories[(int)dir].file;
 }
