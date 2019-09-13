@@ -1174,8 +1174,12 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
             }
 
 			ScopedPointer<FileOutputStream> flacTempWriteStream = new FileOutputStream(tmpFlacFile);
-            ASSERT_OR_FAIL(flacTempWriteStream->openedOk());
-
+            if (!flacTempWriteStream->openedOk()) {
+                STATUS_LOG("Error opening flacTempWriteStream: '" + flacTempWriteStream->getStatus().getErrorMessage() + "'");
+                jassertfalse;
+                
+                return false;
+            }
 
 			CHECK_FLAG(Flag::BeginMonolithLength);
 			auto bytesToRead = fis->readInt64();
