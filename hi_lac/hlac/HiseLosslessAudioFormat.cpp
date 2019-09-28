@@ -1,5 +1,5 @@
 /*  HISE Lossless Audio Codec
-*	©2017 Christoph Hart
+*	ï¿½2017 Christoph Hart
 *
 *	Redistribution and use in source and binary forms, with or without modification,
 *	are permitted provided that the following conditions are met:
@@ -210,11 +210,18 @@ void HiseLosslessHeader::readMetadataFromStream(InputStream* input)
 			blockAmount = (uint32)input->readInt();
 
 			blockOffsets.malloc(blockAmount);
-
-			for (uint32 i = 0; i < blockAmount; i++)
-			{
-				blockOffsets[i] = (uint32)input->readInt();
-			}
+            
+            static_assert(sizeof(uint32) == 4, "");
+            const int numBytesRead = input->read(blockOffsets.getData(), blockAmount * sizeof(uint32));
+            jassert(numBytesRead == blockAmount * sizeof(uint32));
+            ignoreUnused(numBytesRead);
+            
+            if (ByteOrder::isBigEndian()) {
+                for (uint32 i = 0; i < blockAmount; i++)
+                {
+                    blockOffsets[i] = ByteOrder::swap(blockOffsets[i]);
+                }
+            }
 		}
 	}
 
