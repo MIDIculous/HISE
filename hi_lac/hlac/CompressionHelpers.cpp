@@ -1214,6 +1214,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 				
 
 				CHECK_FLAG(Flag::ResumeMonolith);
+                STATUS_LOG("Writing FLAC with bytesToRead:" + String(bytesToRead));
 				const auto numBytesRead = flacTempWriteStream->writeFromInputStream(*fis, bytesToRead);
                 ASSERT_OR_FAIL(numBytesRead == bytesToRead);
 
@@ -1241,7 +1242,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			STATUS_LOG("Decompressing " + name);
 
-			constexpr int bufferSize = 8192 * 32;
+			constexpr int bufferSize = 8192 * 32 * 8;
 
 			AudioSampleBuffer tempBuffer(flacReader->numChannels, bufferSize);
 
@@ -1252,10 +1253,14 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 				const int numToRead = jmin<int>(bufferSize, (int)(flacReader->lengthInSamples - readerOffset));
 
+                STATUS_LOG("Reading from readerOffset:" + String(readerOffset) + " numToRead:" + String(numToRead));
 				flacReader->read(&tempBuffer, 0, numToRead, readerOffset, true, true);
 
 				const bool success = writer->writeFromAudioSampleBuffer(tempBuffer, 0, numToRead);
                 ASSERT_OR_FAIL(success);
+                
+                if (success)
+                    STATUS_LOG("writeFromAudioSampleBuffer succeeded with numToRead:" + String(numToRead));
 
 				*data.progress = (double)readerOffset / (double)flacReader->lengthInSamples;
 			}
@@ -1343,7 +1348,7 @@ FileInputStream* HlacArchiver::writeTempFile(AudioFormatReader* reader)
 	tmpFile.deleteFile();
 	FileOutputStream* tempOutput = new FileOutputStream(tmpFile);
 
-	const int bufferSize = 8192 * 32;
+	const int bufferSize = 8192 * 32 * 8;
 
 	AudioSampleBuffer tempBuffer(reader->numChannels, bufferSize);
 
