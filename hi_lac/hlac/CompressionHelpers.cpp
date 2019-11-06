@@ -1241,6 +1241,8 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
             ASSERT_OR_FAIL(writer);
 
 			STATUS_LOG("Decompressing " + name);
+            
+            dynamic_cast<HiseLosslessAudioFormatWriter*>(writer.get())->preallocateMemory(flacReader->lengthInSamples, flacReader->numChannels);
 
 			constexpr int bufferSize = 8192 * 32 * 8;
 

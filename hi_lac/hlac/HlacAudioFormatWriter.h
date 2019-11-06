@@ -1,5 +1,5 @@
 /*  HISE Lossless Audio Codec
-*	©2017 Christoph Hart
+*	ï¿½2017 Christoph Hart
 *
 *	Redistribution and use in source and binary forms, with or without modification,
 *	are permitted provided that the following conditions are met:
@@ -60,6 +60,9 @@ public:
 
 	/** You can use a temporary file instead of the memory buffer if you encode large files. */
 	void setTemporaryBufferType(bool shouldUseTemporaryFile);
+    
+    /** Call this to preallocate the amount of memory approximately required for the extraction. */
+     void preallocateMemory(int64 numSamplesToWrite, int numChannels);
 
 private:
 

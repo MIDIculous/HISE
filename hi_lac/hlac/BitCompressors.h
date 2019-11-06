@@ -62,6 +62,7 @@ struct BitCompressors
 
 		Collection()
 		{
+            compressors.ensureStorageAllocated(17);
 			compressors.add(new ZeroBit());
 			compressors.add(new OneBit());
 			compressors.add(new TwoBit());
