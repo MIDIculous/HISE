@@ -68,6 +68,7 @@ private:
 
 	bool writeHeader();
 	bool writeDataFromTemp();
+    FileOutputStream* getFileOutputStream();
 
 	void deleteTemp();
 

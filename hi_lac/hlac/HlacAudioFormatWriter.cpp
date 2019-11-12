@@ -28,7 +28,7 @@
 *
 */
 
-namespace hlac { using namespace juce; 
+namespace hlac { using namespace juce;
 
 HiseLosslessAudioFormatWriter::HiseLosslessAudioFormatWriter(EncodeMode mode_, OutputStream* output, double sampleRate, int numChannels, uint32* blockOffsetBuffer) :
 	AudioFormatWriter(output, "HLAC", sampleRate, numChannels, 16),
@@ -132,15 +132,12 @@ void HiseLosslessAudioFormatWriter::setTemporaryBufferType(bool shouldUseTempora
 
 	if (shouldUseTemporaryFile)
 	{
-		FileOutputStream* fosOriginal = dynamic_cast<FileOutputStream*>(output);
-
-		const bool createTempFileInTargetDirectory = fosOriginal != nullptr;
-
-		if (createTempFileInTargetDirectory)
+		if (auto* fosOriginal = getFileOutputStream())
 		{
 			File originalFile = fosOriginal->getFile();
 			tempFile = new TemporaryFile(originalFile, TemporaryFile::OptionFlags::putNumbersInBrackets);
-			File tempTarget = tempFile->getFile();
+            File tempTarget = tempFile->getFile();
+            jassert(tempTarget.getParentDirectory() == originalFile.getParentDirectory());
 			tempOutputStream = new FileOutputStream(tempTarget);
 		}
 		else
@@ -212,9 +209,21 @@ bool HiseLosslessAudioFormatWriter::writeDataFromTemp()
 		FileOutputStream* to = dynamic_cast<FileOutputStream*>(tempOutputStream.get());
 
 		jassert(to != nullptr);
+        jassert(to->getFile() == tempFile->getFile());
+        
+        // Try to just move the temp file to its target, but only if they're in the same directory
+        auto* fileOutputStream = getFileOutputStream();
+        if (fileOutputStream
+            && fileOutputStream->getFile() == tempFile->getTargetFile()
+            && fileOutputStream->getFile().getParentDirectory() == tempFile->getFile().getParentDirectory()
+            && tempFile->overwriteTargetFileWithTemporary()) {
+            tempFile->deleteTemporaryFile();
+            return true;
+        }
 
-		FileInputStream fis(to->getFile());
-		return output->writeFromInputStream(fis, fis.getTotalLength()) == fis.getTotalLength();
+        // Otherwise, copy it over
+        FileInputStream fis(to->getFile());
+        return output->writeFromInputStream(fis, fis.getTotalLength()) == fis.getTotalLength();
 	}
 	else
 	{
@@ -225,6 +234,11 @@ bool HiseLosslessAudioFormatWriter::writeDataFromTemp()
 		MemoryInputStream mis(to->getData(), to->getDataSize(), false);
 		return output->writeFromInputStream(mis, mis.getTotalLength()) == mis.getTotalLength();
 	}
+}
+
+FileOutputStream* HiseLosslessAudioFormatWriter::getFileOutputStream()
+{
+    return dynamic_cast<FileOutputStream*>(output);
 }
 
 void HiseLosslessAudioFormatWriter::deleteTemp()
