@@ -1,5 +1,5 @@
 /*  HISE Lossless Audio Codec
-*	©2017 Christoph Hart
+*	ï¿½2017 Christoph Hart
 *
 *	Redistribution and use in source and binary forms, with or without modification,
 *	are permitted provided that the following conditions are met:
@@ -192,7 +192,7 @@ private:
 
 	bool copyFromMonolith(HiseSampleBuffer& destination, int startOffsetInBuffer, int numDestChannels, int64 offsetInFile, int numChannels, int numSamples);
 
-	ScopedPointer<MemoryInputStream> mis;
+	std::unique_ptr<MemoryInputStream> mis;
 	HlacReaderCommon internalReader;
 
 	bool isMonolith = false;

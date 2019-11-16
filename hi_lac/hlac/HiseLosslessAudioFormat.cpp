@@ -113,9 +113,9 @@ AudioFormatWriter* HiseLosslessAudioFormat::createWriterFor(OutputStream* stream
 MemoryMappedAudioFormatReader* HiseLosslessAudioFormat::createMemoryMappedReader(FileInputStream* fin)
 {
 #if JUCE_64BIT
-	ScopedPointer<AudioFormatReader> normalReader = new HiseLosslessAudioFormatReader(fin);
+	std::unique_ptr<AudioFormatReader> normalReader(new HiseLosslessAudioFormatReader(fin));
 
-	ScopedPointer<HlacMemoryMappedAudioFormatReader> reader = new HlacMemoryMappedAudioFormatReader(fin->getFile(), *normalReader, 0, normalReader->lengthInSamples, 1);
+	std::unique_ptr<HlacMemoryMappedAudioFormatReader> reader(new HlacMemoryMappedAudioFormatReader(fin->getFile(), *normalReader, 0, normalReader->lengthInSamples, 1));
 
 	return reader.release();
 #else
@@ -168,9 +168,9 @@ HiseLosslessHeader::HiseLosslessHeader(InputStream* input)
 
 HiseLosslessHeader::HiseLosslessHeader(const File& f)
 {
-	ScopedPointer<FileInputStream> fis = new FileInputStream(f);
+	std::unique_ptr<FileInputStream> fis(new FileInputStream(f));
 
-	readMetadataFromStream(fis);
+	readMetadataFromStream(fis.get());
 }
 
 void HiseLosslessHeader::readMetadataFromStream(InputStream* input)

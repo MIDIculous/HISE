@@ -72,8 +72,8 @@ private:
 
 	void deleteTemp();
 
-	ScopedPointer<TemporaryFile> tempFile;
-	ScopedPointer<OutputStream> tempOutputStream;
+	std::unique_ptr<TemporaryFile> tempFile;
+	std::unique_ptr<OutputStream> tempOutputStream;
 
 	bool tempWasFlushed = true;
 	bool usesTempFile = false;

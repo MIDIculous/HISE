@@ -401,8 +401,8 @@ private:
 
 		StreamingSamplerSound *sound;
 
-		ScopedPointer<MemoryMappedAudioFormatReader> memoryReader;
-		ScopedPointer<AudioFormatReader> normalReader;
+		std::unique_ptr<MemoryMappedAudioFormatReader> memoryReader;
+		std::unique_ptr<AudioFormatReader> normalReader;
 		bool fileHandlesOpen;
 
 		Atomic<int> voiceCount;

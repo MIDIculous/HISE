@@ -429,9 +429,9 @@ bool HlacMemoryMappedAudioFormatReader::mapSectionOfFile(Range<int64> samplesToM
 			int offset = (int)(fileRange.getStart() - actualMappedRange.getStart());
 			int length = (int)(actualMappedRange.getLength() - offset);
 
-			mis = new MemoryInputStream((uint8*)map->getData() + offset, length, false);
+			mis.reset(new MemoryInputStream((uint8*)map->getData() + offset, length, false));
 
-			internalReader.input = mis;
+			internalReader.input = mis.get();
 
 			internalReader.setUseHeaderOffsetWhenSeeking(false);
 

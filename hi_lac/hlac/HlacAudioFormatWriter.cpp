@@ -135,20 +135,20 @@ void HiseLosslessAudioFormatWriter::setTemporaryBufferType(bool shouldUseTempora
 		if (auto* fosOriginal = getFileOutputStream())
 		{
 			File originalFile = fosOriginal->getFile();
-			tempFile = new TemporaryFile(originalFile, TemporaryFile::OptionFlags::putNumbersInBrackets);
+			tempFile.reset(new TemporaryFile(originalFile, TemporaryFile::OptionFlags::putNumbersInBrackets));
             File tempTarget = tempFile->getFile();
             jassert(tempTarget.getParentDirectory() == originalFile.getParentDirectory());
-			tempOutputStream = new FileOutputStream(tempTarget);
+			tempOutputStream.reset(new FileOutputStream(tempTarget));
 		}
 		else
 		{
-			tempFile = new TemporaryFile(File::getCurrentWorkingDirectory(), TemporaryFile::OptionFlags::putNumbersInBrackets);
+			tempFile.reset(new TemporaryFile(File::getCurrentWorkingDirectory(), TemporaryFile::OptionFlags::putNumbersInBrackets));
 			File tempTarget = tempFile->getFile();
 		}
 	}
 	else
 	{
-		tempOutputStream = new MemoryOutputStream();
+		tempOutputStream.reset(new MemoryOutputStream());
 	}
 }
 

@@ -189,7 +189,7 @@ void HlacMonolithInfo::fillMetadataInfo(const ValueTree& sampleMap)
         
 		dummyReader.lengthInSamples = (fis.getTotalLength() - 1) / bytesPerFrame;
 
-		ScopedPointer<MemoryMappedAudioFormatReader> reader = hlaf.createMemoryMappedReader(monolithicFiles[i]);
+		std::unique_ptr<MemoryMappedAudioFormatReader> reader(hlaf.createMemoryMappedReader(monolithicFiles[i]));
 
 		
 

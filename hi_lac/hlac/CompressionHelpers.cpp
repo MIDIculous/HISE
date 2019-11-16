@@ -231,7 +231,7 @@ AudioSampleBuffer CompressionHelpers::loadFile(const File& f, double& speed)
 
 	MemoryInputStream* mis = new MemoryInputStream(mb, false);
 
-	ScopedPointer<AudioFormatReader> reader = afm.createReaderFor(mis);
+	std::unique_ptr<AudioFormatReader> reader(afm.createReaderFor(mis));
 
 	if (reader != nullptr)
 	{
@@ -265,11 +265,11 @@ float CompressionHelpers::getFLACRatio(const File& f, double& speed)
 
 	afm.registerBasicFormats();
 
-	ScopedPointer<AudioFormatReader> reader = afm.createReaderFor(f);
+	std::unique_ptr<AudioFormatReader> reader(afm.createReaderFor(f));
 
 	MemoryOutputStream* mos = new MemoryOutputStream();
 
-	ScopedPointer<AudioFormatWriter> writer = flac.createWriterFor(mos, reader->sampleRate, reader->numChannels, 16, reader->metadataValues, 5);
+	std::unique_ptr<AudioFormatWriter> writer(flac.createWriterFor(mos, reader->sampleRate, reader->numChannels, 16, reader->metadataValues, 5));
 
 	writer->writeFromAudioReader(*reader, 0, reader->lengthInSamples);
 
@@ -279,7 +279,7 @@ float CompressionHelpers::getFLACRatio(const File& f, double& speed)
 
 	MemoryInputStream* mis = new MemoryInputStream(mos->getMemoryBlock(), true);
 
-	ScopedPointer<AudioFormatReader> flacReader = flac.createReaderFor(mis, true);
+	std::unique_ptr<AudioFormatReader> flacReader(flac.createReaderFor(mis, true));
 
 	AudioSampleBuffer b(flacReader->numChannels, (int)flacReader->lengthInSamples);
 
@@ -481,7 +481,7 @@ void CompressionHelpers::dump(const AudioSampleBuffer& b)
 
 	FileOutputStream* fis = new FileOutputStream(dumpFile.getNonexistentSibling());
 	StringPairArray metadata;
-	ScopedPointer<AudioFormatWriter> writer = afm.createWriterFor(fis, 44100, b.getNumChannels(), 16, metadata, 5);
+	std::unique_ptr<AudioFormatWriter> writer(afm.createWriterFor(fis, 44100, b.getNumChannels(), 16, metadata, 5));
 
 	if (writer != nullptr)
 		writer->writeFromAudioSampleBuffer(b, 0, b.getNumSamples());
@@ -1066,7 +1066,7 @@ bool CompressionHelpers::Misc::validateChecksum(uint32 data)
 	return (uint16)(bytes[0] * bytes[1]) == product;
 }
 
-#define CHECK_FLAG(x) if (!readAndCheckFlag(fis, x)) return false;
+#define CHECK_FLAG(x) if (!readAndCheckFlag(fis.get(), x)) return false;
 #define ASSERT_OR_FAIL(expression) if (!(expression)) {jassertfalse; if (listener) { listener->logStatusMessage(__FILE__ ":" JUCE_STRINGIFY(__LINE__) " Assertion failed: " #expression); } return false; }
 
 #define VERBOSE_LOG(x) listener->logVerboseMessage(x)
@@ -1097,7 +1097,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
     int partIndex = 1;
     *data.currentPartIndex = partIndex;
 
-	ScopedPointer<FileInputStream> fis = new FileInputStream(sourceFile);
+	std::unique_ptr<FileInputStream> fis(new FileInputStream(sourceFile));
     ASSERT_OR_FAIL(fis->openedOk());
 
 	FlacAudioFormat flacFormat;
@@ -1111,7 +1111,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 	StringPairArray metadata;
 
-	currentFlag = readFlag(fis);
+	currentFlag = readFlag(fis.get());
 
 	while (currentFlag == Flag::BeginName)
 	{
@@ -1173,7 +1173,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
                 ASSERT_OR_FAIL(success);
             }
 
-			ScopedPointer<FileOutputStream> flacTempWriteStream = new FileOutputStream(tmpFlacFile);
+			std::unique_ptr<FileOutputStream> flacTempWriteStream(new FileOutputStream(tmpFlacFile));
             if (!flacTempWriteStream->openedOk()) {
                 STATUS_LOG("Error opening flacTempWriteStream: '" + flacTempWriteStream->getStatus().getErrorMessage() + "'");
                 jassertfalse;
@@ -1192,7 +1192,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
             ASSERT_OR_FAIL(numBytesRead == bytesToRead);
             
 
-			currentFlag = readFlag(fis);
+			currentFlag = readFlag(fis.get());
 
 			while (currentFlag == Flag::SplitMonolith)
 			{
@@ -1204,7 +1204,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
                 const auto partFile = getPartFile(sourceFile, partIndex);
                 logPartFile(partFile);
-				fis = new FileInputStream(partFile);
+				fis.reset(new FileInputStream(partFile));
                 ASSERT_OR_FAIL(fis->openedOk());
 
 				CHECK_FLAG(Flag::BeginMonolithLength);
@@ -1218,7 +1218,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 				const auto numBytesRead = flacTempWriteStream->writeFromInputStream(*fis, bytesToRead);
                 ASSERT_OR_FAIL(numBytesRead == bytesToRead);
 
-				currentFlag = readFlag(fis);
+				currentFlag = readFlag(fis.get());
 			}
 
 			ASSERT_OR_FAIL(currentFlag == Flag::EndMonolith);
@@ -1228,7 +1228,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			FileInputStream* flacTempInputStream = new FileInputStream(tmpFlacFile);
             ASSERT_OR_FAIL(flacTempInputStream->openedOk());
 
-			ScopedPointer<AudioFormatReader> flacReader = flacFormat.createReaderFor(flacTempInputStream, true);
+			std::unique_ptr<AudioFormatReader> flacReader(flacFormat.createReaderFor(flacTempInputStream, true));
             ASSERT_OR_FAIL(flacReader);
 
 			VERBOSE_LOG("    Samplerate: " + String(flacReader->sampleRate, 1));
@@ -1237,7 +1237,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			FileOutputStream* monolithOutputStream = new FileOutputStream(targetHlacFile);
             ASSERT_OR_FAIL(monolithOutputStream->openedOk());
-			ScopedPointer<AudioFormatWriter> writer = hlacFormat.createWriterFor(monolithOutputStream, flacReader->sampleRate, flacReader->numChannels, 5, metadata, 5);
+			std::unique_ptr<AudioFormatWriter> writer(hlacFormat.createWriterFor(monolithOutputStream, flacReader->sampleRate, flacReader->numChannels, 5, metadata, 5));
             ASSERT_OR_FAIL(writer);
 
 			STATUS_LOG("Decompressing " + name);
@@ -1274,7 +1274,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 			flacReader = nullptr;
             success = tmpFlacFile.deleteFile();
             ASSERT_OR_FAIL(success);
-			currentFlag = readFlag(fis);
+			currentFlag = readFlag(fis.get());
 		}
 		else
 		{
@@ -1286,7 +1286,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 
 			CHECK_FLAG(Flag::BeginMonolith);
 			fis->skipNextBytes(bytesToSkip);
-			currentFlag = readFlag(fis);
+			currentFlag = readFlag(fis.get());
 
 			while (currentFlag == Flag::SplitMonolith)
 			{
@@ -1297,7 +1297,7 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 				fis = nullptr;
                 const auto partFile = getPartFile(sourceFile, partIndex);
                 logPartFile(partFile);
-				fis = new FileInputStream(partFile);
+				fis.reset(new FileInputStream(partFile));
                 ASSERT_OR_FAIL(fis->openedOk());
 
 				CHECK_FLAG(Flag::BeginMonolithLength);
@@ -1308,11 +1308,11 @@ bool HlacArchiver::extractSampleData(const DecompressData& data)
 				CHECK_FLAG(Flag::ResumeMonolith);
 				fis->skipNextBytes(bytesToSkip);
 
-				currentFlag = readFlag(fis);
+				currentFlag = readFlag(fis.get());
 			}
 
 			ASSERT_OR_FAIL(currentFlag == Flag::EndMonolith);
-			currentFlag = readFlag(fis);
+			currentFlag = readFlag(fis.get());
 		}
 	}
 
@@ -1354,7 +1354,7 @@ FileInputStream* HlacArchiver::writeTempFile(AudioFormatReader* reader)
 
 	AudioSampleBuffer tempBuffer(reader->numChannels, bufferSize);
 
-	ScopedPointer<AudioFormatWriter> writer = flacFormat.createWriterFor(tempOutput, reader->sampleRate, reader->numChannels, 16, metadata, 9);
+	std::unique_ptr<AudioFormatWriter> writer(flacFormat.createWriterFor(tempOutput, reader->sampleRate, reader->numChannels, 16, metadata, 9));
 
 	bool writeResult = true;
 
@@ -1415,7 +1415,7 @@ void HlacArchiver::compressSampleData(const CompressData& data)
 
 		FlacAudioFormat flacFormat;
 
-		ScopedPointer<FileOutputStream> fos = new FileOutputStream(targetFile);
+		std::unique_ptr<FileOutputStream> fos = new FileOutputStream(targetFile);
 
 		listener->logVerboseMessage("Writing to " + fos->getFile().getFileName());
 
@@ -1443,7 +1443,7 @@ void HlacArchiver::compressSampleData(const CompressData& data)
 			
 			FileInputStream* fis = new FileInputStream(hlacFiles[i]);
 
-			ScopedPointer<AudioFormatReader> reader = haf.createReaderFor(fis, true);
+			std::unique_ptr<AudioFormatReader> reader = haf.createReaderFor(fis, true);
 
 			const String name = hlacFiles[i].getFileName();
 
@@ -1466,7 +1466,7 @@ void HlacArchiver::compressSampleData(const CompressData& data)
 
 			
 
-			ScopedPointer<FileInputStream> tmpInput = writeTempFile(reader);
+			std::unique_ptr<FileInputStream> tmpInput = writeTempFile(reader);
 
 			if (tmpInput == nullptr)
 				return;
@@ -1531,7 +1531,7 @@ void HlacArchiver::compressSampleData(const CompressData& data)
 
 String HlacArchiver::getMetadataJSON(const File& sourceFile)
 {
-	ScopedPointer<FileInputStream> fis = new FileInputStream(sourceFile);
+	std::unique_ptr<FileInputStream> fis(new FileInputStream(sourceFile));
 
 	return fis->readString();
 }

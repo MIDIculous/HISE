@@ -761,8 +761,8 @@ AudioFormatReader * StreamingSamplerSound::FileReader::getReader()
 {
 	if (!fileHandlesOpen) openFileHandles();
 
-	if (memoryReader != nullptr) return memoryReader;
-	else if (normalReader != nullptr) return normalReader;
+	if (memoryReader != nullptr) return memoryReader.get();
+	else if (normalReader != nullptr) return normalReader.get();
 	else return nullptr;
 }
 
@@ -797,9 +797,9 @@ void StreamingSamplerSound::FileReader::openFileHandles(NotificationType notifyP
 		if (monolithicInfo != nullptr)
 		{
 #if USE_FALLBACK_READERS_FOR_MONOLITH
-			normalReader = monolithicInfo->createFallbackReader(monolithicIndex, monolithicChannelIndex);
+			normalReader.reset(monolithicInfo->createFallbackReader(monolithicIndex, monolithicChannelIndex));
 #else
-			normalReader = monolithicInfo->createMonolithicReader(monolithicIndex, monolithicChannelIndex);
+			normalReader.reset(monolithicInfo->createMonolithicReader(monolithicIndex, monolithicChannelIndex));
 #endif
 
 			if (normalReader != nullptr)
@@ -816,7 +816,7 @@ void StreamingSamplerSound::FileReader::openFileHandles(NotificationType notifyP
 
 				if (format != nullptr)
 				{
-					memoryReader = format->createMemoryMappedReader(loadedFile);
+					memoryReader.reset(format->createMemoryMappedReader(loadedFile));
 
 					if (memoryReader != nullptr)
 					{
@@ -830,7 +830,7 @@ void StreamingSamplerSound::FileReader::openFileHandles(NotificationType notifyP
 			}
 
 
-			normalReader = pool->afm.createReaderFor(loadedFile);
+			normalReader.reset(pool->afm.createReaderFor(loadedFile));
 
 			sampleLength = normalReader != nullptr ? normalReader->lengthInSamples : 0;
 			stereo = (normalReader != nullptr) ? (normalReader->numChannels > 1) : false;

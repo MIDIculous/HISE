@@ -376,7 +376,7 @@ public:
 
 			monolithicFiles.push_back(monolithicFiles_[i]);
 
-			ScopedPointer<FileInputStream> fallbackStream = new FileInputStream(monolithicFiles_[i]);
+			std::unique_ptr<FileInputStream> fallbackStream(new FileInputStream(monolithicFiles_[i]));
 			fallbackReaders.add(new hlac::HiseLosslessAudioFormatReader(fallbackStream.release()));
 			isMonoChannel[i] = fallbackReaders.getLast()->numChannels == 1;
 		}
@@ -465,9 +465,9 @@ public:
 			const int64 start = info->start;
 			const int64 length = info->length;
 
-			ScopedPointer<FileInputStream> fallbackStream = new FileInputStream(monolithicFiles[channelIndex]);
+			std::unique_ptr<FileInputStream> fallbackStream(new FileInputStream(monolithicFiles[channelIndex]));
 			
-			ScopedPointer<hlac::HiseLosslessAudioFormatReader> thumbnailReader = new hlac::HiseLosslessAudioFormatReader(fallbackStream.release());
+			std::unique_ptr<hlac::HiseLosslessAudioFormatReader> thumbnailReader(new hlac::HiseLosslessAudioFormatReader(fallbackStream.release()));
 
 			thumbnailReader->setTargetAudioDataType(AudioDataConverters::float32BE);
 
