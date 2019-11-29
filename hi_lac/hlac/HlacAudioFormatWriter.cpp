@@ -51,21 +51,21 @@ HiseLosslessAudioFormatWriter::~HiseLosslessAudioFormatWriter()
 
 bool HiseLosslessAudioFormatWriter::flush()
 {
-	if (tempWasFlushed)
-		return true;
+    if (tempWasFlushed)
+        return true;
 
-	if (!writeHeader())
-		return false;
+    if (!writeHeader())
+        return false;
 
-	if (!writeDataFromTemp())
-		return false;
+    if (!writeDataFromTemp())
+        return false;
 
-	tempWasFlushed = true;
-    
+    tempWasFlushed = true;
+
     tempOutputStream->flush();
-    
-	deleteTemp();
-	return true;
+
+    deleteTemp();
+    return true;
 }
 
 
@@ -77,163 +77,150 @@ void HiseLosslessAudioFormatWriter::setOptions(HlacEncoder::CompressorOptions& n
 
 bool HiseLosslessAudioFormatWriter::write(const int** samplesToWrite, int numSamples)
 {
-	tempWasFlushed = false;
+    tempWasFlushed = false;
 
-	bool isStereo = samplesToWrite[1] != nullptr;
+    bool isStereo = samplesToWrite[1] != nullptr;
 
-	if (options.useCompression)
-	{
-		if (isStereo)
-		{
-			float* const* r = const_cast<float**>(reinterpret_cast<const float**>(samplesToWrite));
+    if (options.useCompression)
+    {
+        if (isStereo)
+        {
+            float* const* r = const_cast<float**>(reinterpret_cast<const float**>(samplesToWrite));
 
-			AudioSampleBuffer b = AudioSampleBuffer(r, 2, numSamples);
+            AudioSampleBuffer b = AudioSampleBuffer(r, 2, numSamples);
 
-			encoder.compress(b, *tempOutputStream, blockOffsets);
-		}
-		else
-		{
-			float* r = const_cast<float*>(reinterpret_cast<const float*>(samplesToWrite[0]));
+            encoder.compress(b, *tempOutputStream, blockOffsets);
+        }
+        else
+        {
+            float* r = const_cast<float*>(reinterpret_cast<const float*>(samplesToWrite[0]));
 
-			AudioSampleBuffer b = AudioSampleBuffer(&r, 1, numSamples);
+            AudioSampleBuffer b = AudioSampleBuffer(&r, 1, numSamples);
 
-			encoder.compress(b, *tempOutputStream, blockOffsets);
-		}
+            encoder.compress(b, *tempOutputStream, blockOffsets);
+        }
 
-	}
-	else
-	{
-		float* const* r = const_cast<float**>(reinterpret_cast<const float**>(samplesToWrite));
-		numChannels = isStereo ? 2 : 1;
+    }
+    else
+    {
+        float* const* r = const_cast<float**>(reinterpret_cast<const float**>(samplesToWrite));
+        numChannels = isStereo ? 2 : 1;
 
-		AudioSampleBuffer source = AudioSampleBuffer(r, numChannels, numSamples);
+        AudioSampleBuffer source = AudioSampleBuffer(r, numChannels, numSamples);
 
-		MemoryBlock tempBlock;
+        MemoryBlock tempBlock;
 
-		const int bytesToWrite = numSamples * numChannels * sizeof(int16);
+        const int bytesToWrite = numSamples * numChannels * sizeof(int16);
 
-		tempBlock.setSize(bytesToWrite, false);
+        tempBlock.setSize(bytesToWrite, false);
 
-		AudioFormatWriter::WriteHelper<AudioData::Int16, AudioData::Float32, AudioData::LittleEndian>::write(
-			tempBlock.getData(), numChannels, (const int* const *)source.getArrayOfReadPointers(), numSamples);
+        AudioFormatWriter::WriteHelper<AudioData::Int16, AudioData::Float32, AudioData::LittleEndian>::write(
+            tempBlock.getData(), numChannels, (const int* const *)source.getArrayOfReadPointers(), numSamples);
 
-		tempOutputStream->write(tempBlock.getData(), bytesToWrite);
-	}
-	
-	return true;
+        tempOutputStream->write(tempBlock.getData(), bytesToWrite);
+    }
+
+    return true;
 }
-
 
 void HiseLosslessAudioFormatWriter::setTemporaryBufferType(bool shouldUseTemporaryFile)
 {
-	usesTempFile = shouldUseTemporaryFile;
+    usesTempFile = shouldUseTemporaryFile;
 
-	deleteTemp();
+    deleteTemp();
 
-	if (shouldUseTemporaryFile)
-	{
-		if (auto* fosOriginal = getFileOutputStream())
-		{
-			File originalFile = fosOriginal->getFile();
-			tempFile.reset(new TemporaryFile(originalFile, TemporaryFile::OptionFlags::putNumbersInBrackets));
+    if (shouldUseTemporaryFile)
+    {
+        FileOutputStream* fosOriginal = dynamic_cast<FileOutputStream*>(output);
+
+        const bool createTempFileInTargetDirectory = fosOriginal != nullptr;
+
+        if (createTempFileInTargetDirectory)
+        {
+            File originalFile = fosOriginal->getFile();
+            tempFile.reset(new TemporaryFile(originalFile, TemporaryFile::OptionFlags::putNumbersInBrackets));
             File tempTarget = tempFile->getFile();
-            jassert(tempTarget.getParentDirectory() == originalFile.getParentDirectory());
-			tempOutputStream.reset(new FileOutputStream(tempTarget));
-		}
-		else
-		{
-			tempFile.reset(new TemporaryFile(File::getCurrentWorkingDirectory(), TemporaryFile::OptionFlags::putNumbersInBrackets));
-			File tempTarget = tempFile->getFile();
-		}
-	}
-	else
-	{
-		tempOutputStream.reset(new MemoryOutputStream());
-	}
+            tempOutputStream.reset(new FileOutputStream(tempTarget));
+        }
+        else
+        {
+            tempFile.reset(new TemporaryFile(File::getCurrentWorkingDirectory(), TemporaryFile::OptionFlags::putNumbersInBrackets));
+            File tempTarget = tempFile->getFile();
+        }
+    }
+    else
+    {
+        tempOutputStream.reset(new MemoryOutputStream());
+    }
 }
 
 void HiseLosslessAudioFormatWriter::preallocateMemory(int64 numSamplesToWrite, int numChannels)
 {
-   if (auto mos = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get()))
-   {
-       int64 b = numSamplesToWrite * numChannels * 2 * 2 / 3;
+    if (auto mos = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get()))
+    {
+        int64 b = numSamplesToWrite * numChannels * 2 * 2 / 3;
 
-       // Set the limit to 1.5GB
-       int64 limit = 1024;
-       limit *= 1024;
-       limit *= 1024;
-       limit *= 3;
-       limit /= 2;
+        // Set the limit to 1.5GB
+        int64 limit = 1024;
+        limit *= 1024;
+        limit *= 1024;
+        limit *= 3;
+        limit /= 2;
 
-       if (b > limit)
-           setTemporaryBufferType(true);
-       else
-           mos->preallocate(b);
-   }
+        if (b > limit)
+            setTemporaryBufferType(true);
+        else
+            mos->preallocate(b);
+    }
 }
 
 bool HiseLosslessAudioFormatWriter::writeHeader()
 {
-	if (options.useCompression)
-	{
-		auto numBlocks = encoder.getNumBlocksWritten();
+    if (options.useCompression)
+    {
+        auto numBlocks = encoder.getNumBlocksWritten();
 
-		HiseLosslessHeader header(useEncryption, globalBitShiftAmount, sampleRate, numChannels, bitsPerSample, useCompression, numBlocks);
+        HiseLosslessHeader header(useEncryption, globalBitShiftAmount, sampleRate, numChannels, bitsPerSample, useCompression, numBlocks);
 
-		jassert(header.getVersion() == HLAC_VERSION);
-		jassert(header.getBitShiftAmount() == globalBitShiftAmount);
-		jassert(header.getNumChannels() == numChannels);
-		jassert(header.usesCompression() == useCompression);
-		jassert(header.getSampleRate() == sampleRate);
-		jassert(header.getBitsPerSample() == bitsPerSample);
+        jassert(header.getVersion() == HLAC_VERSION);
+        jassert(header.getBitShiftAmount() == globalBitShiftAmount);
+        jassert(header.getNumChannels() == numChannels);
+        jassert(header.usesCompression() == useCompression);
+        jassert(header.getSampleRate() == sampleRate);
+        jassert(header.getBitsPerSample() == bitsPerSample);
 
-		header.storeOffsets(blockOffsets, numBlocks);
+        header.storeOffsets(blockOffsets, numBlocks);
 
-		return header.write(output);
-	}
-	else
-	{
-		auto monoHeader = HiseLosslessHeader::createMonolithHeader(numChannels, sampleRate);
+        return header.write(output);
+    }
+    else
+    {
+        auto monoHeader = HiseLosslessHeader::createMonolithHeader(numChannels, sampleRate);
 
-		return monoHeader.write(output);
-	}
-
-	
+        return monoHeader.write(output);
+    }
 }
-
 
 bool HiseLosslessAudioFormatWriter::writeDataFromTemp()
 {
-	if (usesTempFile)
-	{
-		FileOutputStream* to = dynamic_cast<FileOutputStream*>(tempOutputStream.get());
+    if (usesTempFile)
+    {
+        FileOutputStream* to = dynamic_cast<FileOutputStream*>(tempOutputStream.get());
 
-		jassert(to != nullptr);
-        jassert(to->getFile() == tempFile->getFile());
-        
-        // Try to just move the temp file to its target, but only if they're in the same directory
-        auto* fileOutputStream = getFileOutputStream();
-        if (fileOutputStream
-            && fileOutputStream->getFile() == tempFile->getTargetFile()
-            && fileOutputStream->getFile().getParentDirectory() == tempFile->getFile().getParentDirectory()
-            && tempFile->overwriteTargetFileWithTemporary()) {
-            tempFile->deleteTemporaryFile();
-            return true;
-        }
+        jassert(to != nullptr);
 
-        // Otherwise, copy it over
         FileInputStream fis(to->getFile());
         return output->writeFromInputStream(fis, fis.getTotalLength()) == fis.getTotalLength();
-	}
-	else
-	{
-		MemoryOutputStream* to = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get());
+    }
+    else
+    {
+        MemoryOutputStream* to = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get());
 
-		jassert(to != nullptr);
+        jassert(to != nullptr);
 
-		MemoryInputStream mis(to->getData(), to->getDataSize(), false);
-		return output->writeFromInputStream(mis, mis.getTotalLength()) == mis.getTotalLength();
-	}
+        MemoryInputStream mis(to->getData(), to->getDataSize(), false);
+        return output->writeFromInputStream(mis, mis.getTotalLength()) == mis.getTotalLength();
+    }
 }
 
 FileOutputStream* HiseLosslessAudioFormatWriter::getFileOutputStream()
@@ -243,12 +230,13 @@ FileOutputStream* HiseLosslessAudioFormatWriter::getFileOutputStream()
 
 void HiseLosslessAudioFormatWriter::deleteTemp()
 {
-	// If you hit this assertion, it means that you didn't call flush after writing the last data.
-	// This means nothing will get written to the actual output stream...
-	jassert(tempWasFlushed);
+    // If you hit this assertion, it means that you didn't call flush after writing the last data.
+    // This means nothing will get written to the actual output stream...
+    jassert(tempWasFlushed);
 
     tempOutputStream = nullptr;
     tempFile = nullptr;
+    
 }
 
 } // namespace hlac
