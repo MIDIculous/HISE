@@ -41,8 +41,7 @@ namespace hise { using namespace juce;
 *	It is derived from ThreadPoolJob, so whenever you want it to read new samples, add an instance of this
 *	to a ThreadPool (but don't delete it!) and it will do what it is supposed to do.
 */
-class SampleLoader : public SampleThreadPoolJob,
-                     public std::enable_shared_from_this<SampleLoader> // note: public inheritance
+class SampleLoader : public SampleThreadPoolJob
 {
 public:
 
@@ -122,6 +121,8 @@ public:
 
 	void setLogger(DebugLogger* l) { logger = l; }
 	const CriticalSection &getLock() const { return lock; }
+    
+    nostl::weak_ptr<SampleLoader> weakThis;
 
 
 private:
@@ -140,7 +141,7 @@ private:
 	void refreshBufferSizes();
 	// ============================================================================================ member variables
 
-    std::shared_ptr<Unmapper> unmapper;
+    nostl::shared_ptr<Unmapper> unmapper;
 
 	/** The class tries to be as lock free as possible (it only locks the buffer that is filled
 	*	during the read operation, but I have to lock everything for a few calls, so that's why
@@ -305,7 +306,7 @@ private:
 
 	DebugLogger* logger = nullptr;
 
-    std::shared_ptr<SampleLoader> loader;
+    nostl::shared_ptr<SampleLoader> loader;
 };
 
 } // namespace hise

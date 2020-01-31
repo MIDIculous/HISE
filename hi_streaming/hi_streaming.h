@@ -42,7 +42,7 @@ BEGIN_JUCE_MODULE_DECLARATION
   website:          http://hise.audio
   license:          GPL / Commercial
 
-  dependencies:     juce_audio_basics, juce_audio_devices, juce_audio_formats, juce_audio_processors, juce_core, juce_data_structures, juce_events, hi_lac, intel_ipp, readerwriterqueue
+  dependencies:     atomic_shared_ptr, juce_audio_basics, juce_audio_devices, juce_audio_formats, juce_audio_processors, juce_core, juce_data_structures, juce_events, hi_lac, intel_ipp, readerwriterqueue
   OSXFrameworks:    Accelerate
   iOSFrameworks:    Accelerate
 
@@ -66,6 +66,7 @@ END_JUCE_MODULE_DECLARATION
 #include <intel_ipp/intel_ipp.h>
 #endif
 #include <hi_lac/hi_lac.h>
+#include <atomic_shared_ptr/atomic_shared_ptr.h>
 
 
 #if USE_IPP

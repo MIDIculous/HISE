@@ -92,7 +92,7 @@ namespace {
 
 SampleLoader::SampleLoader(SampleThreadPool *pool_)
 : backgroundPool(pool_),
-  unmapper(std::make_shared<Unmapper>()),
+  unmapper(new Unmapper()),
   writeBufferIsBeingFilled(false),
   sound(0),
   readIndex(0),
@@ -356,11 +356,19 @@ bool SampleLoader::requestNewData()
         return false;
     }
     else {
-        backgroundPool->addJob(shared_from_this(), false);
+        if(auto this_ = weakThis.lock())
+            backgroundPool->addJob(this_, false);
+        else
+            jassertfalse;
+        
         return true;
     }
 #else
-    backgroundPool->addJob(shared_from_this(), false);
+    if(auto this_ = weakThis.lock())
+        backgroundPool->addJob(this_, false);
+    else
+        jassertfalse;
+    
     return true;
 #endif
 };
@@ -504,9 +512,11 @@ bool SampleLoader::swapBuffers()
 // ==================================================================================================== StreamingSamplerVoice methods
 
 StreamingSamplerVoice::StreamingSamplerVoice(SampleThreadPool *pool)
-: loader(std::make_shared<SampleLoader>(pool)),
+: loader(new SampleLoader(pool)),
   sampleStartModValue(0)
 {
+    loader->weakThis = loader;
+    
     pitchData = nullptr;
 };
 

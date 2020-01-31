@@ -48,9 +48,9 @@ struct SampleThreadPool::Pimpl
 
     int64 startTime, endTime;
 
-    moodycamel::ReaderWriterQueue<std::weak_ptr<Job>> jobQueue;
+    moodycamel::ReaderWriterQueue<nostl::weak_ptr<Job>> jobQueue;
 
-    std::shared_ptr<Job> currentlyExecutedJob;
+    nostl::atomic_shared_ptr<Job> currentlyExecutedJob;
 
     static const String errorMessage;
 };
@@ -71,7 +71,7 @@ SampleThreadPool::~SampleThreadPool()
     Logger::writeToLog("~SampleThreadPool()");
 #endif
 
-    if (const auto currentJob = std::atomic_load(&pimpl->currentlyExecutedJob)) {
+    if (const auto currentJob = pimpl->currentlyExecutedJob.load()) {
 #if LOG_POOL_ACTIVITY
         Logger::writeToLog("currentJob != nullptr. Calling currentJob->signalJobShouldExit()...");
 #endif
@@ -93,7 +93,7 @@ double SampleThreadPool::getDiskUsage() const noexcept
     return pimpl->diskUsage.load();
 }
 
-void SampleThreadPool::addJob(const std::weak_ptr<Job>& jobToAdd, bool)
+void SampleThreadPool::addJob(const nostl::weak_ptr<Job>& jobToAdd, bool)
 {
     auto j = jobToAdd.lock();
     if (!j) {
@@ -148,7 +148,7 @@ void SampleThreadPool::run()
 #if LOG_POOL_ACTIVITY
                     Logger::writeToLog("SampleThreadPool::run(): Running job: " + j->getName() + "...");
 #endif
-                    std::atomic_store(&pimpl->currentlyExecutedJob, j);
+                    pimpl->currentlyExecutedJob.store(j);
 
                     j->setRunning(true);
                     const auto status = j->runJob();
@@ -168,7 +168,7 @@ void SampleThreadPool::run()
                     }
 #endif
 
-                    std::atomic_store(&pimpl->currentlyExecutedJob, std::shared_ptr<Job>(nullptr));
+                    pimpl->currentlyExecutedJob.store(nostl::shared_ptr<Job>(nullptr));
                 }
                 else {
 #if LOG_POOL_ACTIVITY
