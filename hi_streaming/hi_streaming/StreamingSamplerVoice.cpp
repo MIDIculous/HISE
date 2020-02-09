@@ -512,7 +512,7 @@ bool SampleLoader::swapBuffers()
 // ==================================================================================================== StreamingSamplerVoice methods
 
 StreamingSamplerVoice::StreamingSamplerVoice(SampleThreadPool *pool)
-: loader(new SampleLoader(pool)),
+: loader(nostl::make_shared<SampleLoader>(pool)),
   sampleStartModValue(0)
 {
     loader->weakThis = loader;
