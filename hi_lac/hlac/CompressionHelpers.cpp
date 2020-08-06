@@ -229,9 +229,7 @@ AudioSampleBuffer CompressionHelpers::loadFile(const File& f, double& speed)
 	fis.readIntoMemoryBlock(mb);
 
 
-	MemoryInputStream* mis = new MemoryInputStream(mb, false);
-
-	std::unique_ptr<AudioFormatReader> reader(afm.createReaderFor(mis));
+	std::unique_ptr<AudioFormatReader> reader(afm.createReaderFor(std::make_unique<MemoryInputStream>(mb, false)));
 
 	if (reader != nullptr)
 	{

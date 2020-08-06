@@ -411,11 +411,7 @@ bool HlacMemoryMappedAudioFormatReader::mapSectionOfFile(Range<int64> samplesToM
 
 		auto fileRange = Range<int64>(start, end);
 
-#if JUCE_MAJOR_VERSION >= 5 && JUCE_MINOR_VERSION >= 3
         map.reset(new MemoryMappedFile(getFile(), fileRange, MemoryMappedFile::readOnly, false));
-#else
-		map = new MemoryMappedFile(getFile(), fileRange, MemoryMappedFile::readOnly, false);
-#endif
 
 		if (map != nullptr && !map->getRange().isEmpty())
 		{
