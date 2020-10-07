@@ -205,21 +205,23 @@ bool HiseLosslessAudioFormatWriter::writeDataFromTemp()
 {
     if (usesTempFile)
     {
-        FileOutputStream* to = dynamic_cast<FileOutputStream*>(tempOutputStream.get());
-
-        jassert(to != nullptr);
-
-        FileInputStream fis(to->getFile());
-        return output->writeFromInputStream(fis, fis.getTotalLength()) == fis.getTotalLength();
+        if (auto* to = dynamic_cast<FileOutputStream*>(tempOutputStream.get())) {
+            FileInputStream fis(to->getFile());
+            return output->writeFromInputStream(fis, fis.getTotalLength()) == fis.getTotalLength();
+        }
+        
+        jassertfalse;
+        return false;
     }
     else
     {
-        MemoryOutputStream* to = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get());
-
-        jassert(to != nullptr);
-
-        MemoryInputStream mis(to->getData(), to->getDataSize(), false);
-        return output->writeFromInputStream(mis, mis.getTotalLength()) == mis.getTotalLength();
+        if (auto* to = dynamic_cast<MemoryOutputStream*>(tempOutputStream.get())) {
+            MemoryInputStream mis(to->getData(), to->getDataSize(), false);
+            return output->writeFromInputStream(mis, mis.getTotalLength()) == mis.getTotalLength();
+        }
+        
+        jassertfalse;
+        return false;
     }
 }
 
