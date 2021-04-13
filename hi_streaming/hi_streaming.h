@@ -54,7 +54,14 @@ END_JUCE_MODULE_DECLARATION
 #define HI_STREAMING_INCLUDED
 
 
+#if !defined(JUCE_MODULE_AVAILABLE_juce_core)
+// Detect which JUCE modules are enabled
 #include "AppConfig.h"
+
+#if !defined(JUCE_MODULE_AVAILABLE_juce_core)
+#error "JUCE_MODULE_AVAILABLE_juce_core must be defined."
+#endif
+#endif
 
 #include <atomic>
 

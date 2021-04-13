@@ -51,7 +51,14 @@ END_JUCE_MODULE_DECLARATION
 #ifndef HI_LAC_INCLUDED
 #define HI_LAC_INCLUDED
 
+#if !defined(JUCE_MODULE_AVAILABLE_juce_core)
+// Detect which JUCE modules are enabled
 #include "AppConfig.h"
+
+#if !defined(JUCE_MODULE_AVAILABLE_juce_core)
+#error "JUCE_MODULE_AVAILABLE_juce_core must be defined."
+#endif
+#endif
 
 #include <juce_audio_formats/juce_audio_formats.h>
 
