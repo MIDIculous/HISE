@@ -106,8 +106,8 @@ SampleLoader::SampleLoader(SampleThreadPool *pool_)
   writeBuffer(nullptr),
   diskUsage(0.0),
   lastCallToRequestData(0.0),
-  b1(true, 2, 0),
-  b2(true, 2, 0)
+  b1(false, 2, 0),
+  b2(false, 2, 0)
 {
     unmapper->setLoader(this);
 
@@ -225,8 +225,11 @@ void SampleLoader::setStreamingBufferDataType(bool shouldBeFloat)
 {
     ScopedLock sl(getLock());
 
-    b1 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
-    b2 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
+    if (shouldBeFloat != b1.isFloatingPoint())
+        b1 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
+    
+    if (shouldBeFloat != b2.isFloatingPoint())
+        b2 = hlac::HiseSampleBuffer(shouldBeFloat, 2, 0);
 
     refreshBufferSizes();
 }
